@@ -16,10 +16,14 @@ class MockCRMAdapter(CRMAdapter):
     """In-memory CRM adapter for demo purposes."""
 
     async def search_client(self, name: str) -> list[ClientProfile]:
-        """Fuzzy match clients by name using rapidfuzz."""
+        """Fuzzy match clients by name using rapidfuzz partial_ratio.
+
+        Uses partial_ratio so first-name-only queries (e.g. "Rahul") score
+        highly against full names ("Rahul Mehta"). Threshold 70 on partial.
+        """
         results = []
         for client_id, full_profile in database.CLIENTS.items():
-            score = fuzz.token_sort_ratio(name.lower(), full_profile.profile.name.lower())
+            score = fuzz.partial_ratio(name.lower(), full_profile.profile.name.lower())
             if score >= 70:
                 results.append((score, full_profile.profile))
         results.sort(key=lambda x: x[0], reverse=True)

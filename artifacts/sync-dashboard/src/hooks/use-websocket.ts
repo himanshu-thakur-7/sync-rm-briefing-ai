@@ -1,83 +1,85 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import { BriefingLog } from "@workspace/api-client-react";
+/**
+ * WebSocket hook with exponential back-off reconnect + latency ping.
+ * Handles all server event types:
+ *   history, sync_completed, call_started, call_failed,
+ *   webhook_event, connection_synced, transcript_chunk,
+ *   command_executed, command_failed
+ */
+import { useCallback, useEffect, useRef, useState } from "react";
 
-export type WebSocketMessage = 
-  | { type: "history"; data: BriefingLog[] }
-  | { type: "sync_completed"; data: BriefingLog }
-  | { type: "call_started"; data: { call_id: string; client_name: string; rm_name: string } };
+export interface WebSocketMessage {
+  type: string;
+  data?: any;
+  timestamp?: number;
+}
 
-interface UseWebSocketOptions {
+interface Options {
   onMessage: (message: WebSocketMessage) => void;
 }
 
-export function useWebSocket({ onMessage }: UseWebSocketOptions) {
+const BASE_RECONNECT_MS = 1000;
+const MAX_RECONNECT_MS = 5000;
+const PING_INTERVAL_MS = 30_000;
+
+export function useWebSocket({ onMessage }: Options) {
   const [isConnected, setIsConnected] = useState(false);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const pingIntervalRef = useRef<number | null>(null);
-  const reconnectTimeoutRef = useRef<number | null>(null);
-  const reconnectAttemptRef = useRef(0);
-  const onMessageRef = useRef(onMessage);
 
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectDelay = useRef(BASE_RECONNECT_MS);
+  const pingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
-
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws/dashboard`;
-
-    const ws = new WebSocket(wsUrl);
+    const wsUrl = import.meta.env.VITE_WS_URL ?? `ws://${window.location.host}`;
+    const ws = new WebSocket(`${wsUrl}/ws/dashboard`);
     wsRef.current = ws;
 
     ws.onopen = () => {
       setIsConnected(true);
-      reconnectAttemptRef.current = 0;
-      
-      pingIntervalRef.current = window.setInterval(() => {
+      reconnectDelay.current = BASE_RECONNECT_MS;
+
+      pingTimer.current = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
-          const start = performance.now();
-          ws.send(JSON.stringify({ type: "ping", timestamp: start }));
+          ws.send(JSON.stringify({ type: "ping", timestamp: performance.now() }));
         }
-      }, 30000);
+      }, PING_INTERVAL_MS);
     };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = (evt) => {
       try {
-        const data = JSON.parse(event.data);
-        if (data.type === "pong" && data.timestamp) {
-          setLatencyMs(Math.round(performance.now() - data.timestamp));
-        } else {
-          onMessageRef.current(data);
+        const msg: WebSocketMessage = JSON.parse(evt.data);
+        if (msg.type === "pong" && msg.timestamp !== undefined) {
+          setLatencyMs(Math.round(performance.now() - msg.timestamp));
+          return;
         }
-      } catch (err) {
-        console.error("Failed to parse WS message", err);
+        onMessageRef.current(msg);
+      } catch {
+        // ignore malformed frames
       }
     };
 
     ws.onclose = () => {
       setIsConnected(false);
-      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
-      
-      const backoff = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current), 5000);
-      reconnectAttemptRef.current++;
-      
-      reconnectTimeoutRef.current = window.setTimeout(() => {
+      setLatencyMs(null);
+      if (pingTimer.current) clearInterval(pingTimer.current);
+      reconnectTimer.current = setTimeout(() => {
         connect();
-      }, backoff);
+      }, reconnectDelay.current);
+      reconnectDelay.current = Math.min(reconnectDelay.current * 2, MAX_RECONNECT_MS);
     };
 
-    ws.onerror = (error) => {
-      console.error("WebSocket error", error);
-    };
+    ws.onerror = () => ws.close();
   }, []);
 
   useEffect(() => {
     connect();
     return () => {
-      if (wsRef.current) wsRef.current.close();
-      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
-      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if (pingTimer.current) clearInterval(pingTimer.current);
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      wsRef.current?.close();
     };
   }, [connect]);
 

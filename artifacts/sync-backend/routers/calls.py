@@ -1,11 +1,18 @@
-import uuid
-import time
+import asyncio
+import hashlib
 import logging
+import time
+import uuid
 from datetime import datetime
+from typing import AsyncGenerator
+
 from fastapi import APIRouter, HTTPException
-from models import SyncRequest, SyncResponse, BriefingLog
-from services.crm_factory import crm
+from fastapi.responses import StreamingResponse
+
+from config import settings
+from models import BriefingLog, SyncRequest, SyncResponse
 from services.briefing_engine import generate_briefing
+from services.crm_factory import crm_async as crm
 from services.ringg_service import ringg_service
 from config import settings
 import database
@@ -30,7 +37,7 @@ async def sync_now(request: SyncRequest):
     start_time = time.time()
 
     # 1. Fetch client profile
-    client = await crm().get_client(request.client_id)
+    client = await (await crm()).get_client(request.client_id)
     if not client:
         raise HTTPException(status_code=404, detail=f"Client '{request.client_id}' not found")
 
@@ -133,8 +140,95 @@ async def sync_now(request: SyncRequest):
         },
     })
 
+    if not settings.ringg_api_key:
+        async def complete_simulated_call() -> None:
+            await asyncio.sleep(2.5)
+            briefing_log.duration_seconds = 38 + (h % 15)
+            await broadcast_event({
+                "type": "sync_completed",
+                "data": briefing_log.model_dump(),
+            })
+
+        asyncio.create_task(complete_simulated_call())
+
     return SyncResponse(
         call_id=call_id,
         status="initiated" if settings.ringg_api_key else "simulated",
         briefing_preview=briefing_text[:300],
+    )
+
+
+@router.get("/sync-now/{call_id}")
+async def get_call_detail(call_id: str):
+    """Merge Ringg call details with local BriefingLogRow."""
+    import database
+    from sqlmodel import select
+    from db import get_session
+    from db.models import BriefingLogRow
+
+    # Try DB first, fall back to in-memory
+    transcript = None
+    recording_url = None
+    duration = 0.0
+
+    try:
+        async with get_session() as session:
+            row = (await session.exec(
+                select(BriefingLogRow).where(BriefingLogRow.call_id == call_id)
+            )).first()
+            if row:
+                transcript = row.transcript
+                recording_url = row.recording_url
+                duration = row.duration_seconds
+    except Exception:
+        pass
+
+    # Supplement from in-memory
+    if not transcript:
+        log = next((b for b in database.BRIEFING_LOGS if b.call_id == call_id), None)
+        if log:
+            duration = log.duration_seconds
+
+    # Try Ringg API for live details
+    ringg_data = {}
+    if settings.ringg_api_key:
+        try:
+            ringg_data = await ringg_service.get_call_details(call_id)
+        except Exception:
+            pass
+
+    return {
+        "call_id": call_id,
+        "duration_seconds": duration,
+        "transcript": transcript or ringg_data.get("transcript", ""),
+        "recording_url": recording_url or ringg_data.get("recording_url"),
+        "ringg_status": ringg_data.get("status"),
+    }
+
+
+@router.get("/sync-now/{call_id}/transcript/stream")
+async def stream_transcript(call_id: str):
+    """Server-Sent Events stream of transcript chunks for a call."""
+    from routers.webhooks import _transcript_queues
+
+    queue: asyncio.Queue = asyncio.Queue()
+    _transcript_queues[call_id] = queue
+
+    async def event_generator() -> AsyncGenerator[bytes, None]:
+        try:
+            while True:
+                try:
+                    chunk = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield f"data: {chunk}\n\n".encode()
+                    if chunk == "[DONE]":
+                        break
+                except asyncio.TimeoutError:
+                    yield b": keepalive\n\n"
+        finally:
+            _transcript_queues.pop(call_id, None)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

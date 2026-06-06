@@ -43,34 +43,33 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* DARK MODE DEFAULT */
 :root {
-  --background: 0 0% 4%;
-  --foreground: 0 0% 98%;
+  --background: 210 20% 98%;
+  --foreground: 222 31% 12%;
 
-  --border: 0 0% 12%;
-  --input: 0 0% 15%;
-  --ring: 210 100% 50%;
+  --border: 214 18% 84%;
+  --input: 214 18% 84%;
+  --ring: 214 78% 42%;
 
-  --card: 0 0% 6%;
-  --card-foreground: 0 0% 98%;
-  --card-border: 0 0% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 31% 12%;
+  --card-border: 214 18% 84%;
 
-  --popover: 0 0% 6%;
-  --popover-foreground: 0 0% 98%;
-  --popover-border: 0 0% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 31% 12%;
+  --popover-border: 214 18% 84%;
 
-  --primary: 210 100% 50%;
+  --primary: 214 78% 42%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 0 0% 12%;
-  --secondary-foreground: 0 0% 98%;
+  --secondary: 215 24% 94%;
+  --secondary-foreground: 222 31% 12%;
 
-  --muted: 0 0% 12%;
-  --muted-foreground: 0 0% 60%;
+  --muted: 215 24% 94%;
+  --muted-foreground: 218 12% 42%;
 
-  --accent: 0 0% 15%;
-  --accent-foreground: 0 0% 98%;
+  --accent: 174 42% 91%;
+  --accent-foreground: 181 56% 17%;
 
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
@@ -80,9 +79,49 @@
   --radius: 0.5rem;
 }
 
+.dark {
+  --background: 220 23% 8%;
+  --foreground: 214 20% 94%;
+
+  --border: 219 16% 20%;
+  --input: 219 16% 20%;
+  --ring: 206 93% 58%;
+
+  --card: 222 24% 11%;
+  --card-foreground: 214 20% 94%;
+  --card-border: 219 16% 20%;
+
+  --popover: 222 24% 11%;
+  --popover-foreground: 214 20% 94%;
+  --popover-border: 219 16% 20%;
+
+  --primary: 206 93% 58%;
+  --primary-foreground: 222 31% 10%;
+
+  --secondary: 219 18% 16%;
+  --secondary-foreground: 214 20% 94%;
+
+  --muted: 219 18% 16%;
+  --muted-foreground: 215 14% 66%;
+
+  --accent: 172 48% 18%;
+  --accent-foreground: 166 76% 84%;
+
+  --destructive: 0 72% 58%;
+  --destructive-foreground: 0 0% 100%;
+}
+
 @layer base {
   * {
     @apply border-border;
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
   }
 
   body {

@@ -1,34 +1,64 @@
+"""Legacy CRM-adapter accessor.
+
+Kept for back-compat with routers that import `crm()` directly. The real
+multi-connection resolution now lives in `services.connection_registry`.
+The `crm()` shim returns whatever adapter the registry resolves as default
+at call time.
 """
-CRM adapter factory — returns the correct adapter based on CRM_ADAPTER env var.
-"""
+import asyncio
+import logging
+from typing import Optional
+
 from adapters.base import CRMAdapter
-from config import settings
 
+logger = logging.getLogger(__name__)
 
-def get_crm_adapter() -> CRMAdapter:
-    """Return the configured CRM adapter."""
-    adapter_type = settings.crm_adapter.lower()
-
-    if adapter_type == "mock":
-        from adapters.mock_crm import MockCRMAdapter
-        return MockCRMAdapter()
-    elif adapter_type == "hubspot":
-        from adapters.hubspot import HubSpotCRMAdapter
-        return HubSpotCRMAdapter()
-    elif adapter_type == "salesforce":
-        from adapters.salesforce import SalesforceCRMAdapter
-        return SalesforceCRMAdapter()
-    else:
-        raise ValueError(f"Unknown CRM adapter: {adapter_type}. Must be 'mock', 'hubspot', or 'salesforce'.")
-
-
-# Singleton
-_adapter: CRMAdapter | None = None
+# Module-level cache so synchronous callers don't pay the lookup twice.
+_cached: Optional[CRMAdapter] = None
 
 
 def crm() -> CRMAdapter:
-    """Get the singleton CRM adapter instance."""
-    global _adapter
-    if _adapter is None:
-        _adapter = get_crm_adapter()
-    return _adapter
+    """Return the default CRM adapter.
+
+    Synchronous bridge over the async registry: routers that want the active
+    adapter without a connection_id (the legacy path) get the registry's
+    default. New code should prefer `await connection_registry.crm_for(id)`.
+    """
+    from services import connection_registry
+
+    global _cached
+    if _cached is not None:
+        return _cached
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is not None and loop.is_running():
+        # Called from an async context — schedule a task and wait.
+        # The legacy callers in routers/* are sync wrappers around await crm().*
+        # so we expose an awaitable accessor below. The lazy import keeps the
+        # adapter classes out of import-time costs.
+        raise RuntimeError(
+            "crm() called from running event loop — use `await crm_async()` "
+            "or `await connection_registry.default_adapter()` instead."
+        )
+
+    _cached = asyncio.run(connection_registry.default_adapter())
+    return _cached
+
+
+async def crm_async() -> CRMAdapter:
+    """Async accessor for the default adapter."""
+    from services import connection_registry
+
+    return await connection_registry.default_adapter()
+
+
+def invalidate() -> None:
+    global _cached
+    _cached = None
+    from services import connection_registry
+
+    connection_registry.invalidate()

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ client.profile.name }} — LeadSquared (Sandbox)</title>
+  <style>
+    :root {
+      --bg: #020817; --card: #0d1117; --card2: #111827;
+      --border: rgba(255,255,255,0.06); --border-strong: rgba(255,255,255,0.12);
+      --text: #e2e8f0; --text-muted: #94a3b8; --text-faint: #475569;
+      --indigo: #6366f1; --indigo-soft: rgba(99,102,241,0.15);
+      --risk-very_low: #10b981; --risk-low: #3b82f6;
+      --risk-medium: #f59e0b; --risk-watch: #f97316; --risk-high: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, "Segoe UI", sans-serif; }
+    body { background: var(--bg); color: var(--text); font-size: 13px; min-height: 100vh; }
+
+    .header {
+      background: linear-gradient(180deg, #1e1b4b 0%, #0f172a 100%);
+      padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand { font-size: 11px; opacity: 0.7; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600; }
+    .sync-badge {
+      font-size: 9px; background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.4);
+      border-radius: 4px; padding: 3px 8px; font-weight: 700; color: #a5b4fc;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+
+    .contact-header {
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 16px; display: flex; align-items: flex-start; gap: 12px;
+    }
+    .avatar {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--indigo), #8b5cf6);
+      color: #fff; display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 700; flex-shrink: 0;
+      box-shadow: 0 0 20px rgba(99,102,241,0.3);
+    }
+    .contact-name { font-size: 17px; font-weight: 700; color: #fff; }
+    .contact-meta { color: var(--text-muted); margin-top: 2px; font-size: 12px; }
+    .risk-chip {
+      display: inline-block; font-size: 10px; font-weight: 700;
+      text-transform: uppercase; padding: 3px 8px; border-radius: 4px;
+      letter-spacing: 0.05em; margin-top: 6px;
+    }
+    .risk-very_low { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+    .risk-low { background: rgba(59,130,246,0.15); color: #93c5fd; }
+    .risk-medium { background: rgba(245,158,11,0.15); color: #fcd34d; }
+    .risk-watch { background: rgba(249,115,22,0.15); color: #fdba74; }
+    .risk-high { background: rgba(239,68,68,0.15); color: #fca5a5; }
+
+    .tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--card); padding: 0 8px; }
+    .tab {
+      padding: 10px 14px; cursor: pointer; font-size: 11px; font-weight: 600;
+      color: var(--text-faint); border-bottom: 2px solid transparent;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      transition: all 0.2s;
+    }
+    .tab:hover { color: var(--text-muted); }
+    .tab.active { color: #a5b4fc; border-bottom-color: var(--indigo); }
+
+    .content { padding: 12px; }
+    .section { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+    .section-title {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-faint);
+      padding: 10px 14px; border-bottom: 1px solid var(--border); letter-spacing: 0.1em;
+    }
+    .field-row {
+      display: flex; align-items: flex-start; padding: 8px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      transition: background 0.15s;
+    }
+    .field-row:hover { background: rgba(255,255,255,0.02); cursor: pointer; }
+    .field-row:last-child { border-bottom: none; }
+    .field-label { width: 42%; color: var(--text-faint); font-size: 11px; }
+    .field-value { flex: 1; font-weight: 500; color: var(--text); font-size: 12px; }
+
+    .product-card {
+      padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .product-card:last-child { border-bottom: none; }
+    .product-type { font-weight: 700; text-transform: capitalize; font-size: 13px; color: #fff; }
+    .product-meta { color: var(--text-muted); margin-top: 4px; font-size: 11px; }
+
+    .activity-row {
+      padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); display: flex; gap: 10px;
+    }
+    .activity-row:last-child { border-bottom: none; }
+    .activity-icon {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--indigo-soft); color: #a5b4fc;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; flex-shrink: 0; margin-top: 2px;
+    }
+    .activity-note { flex: 1; }
+    .activity-text { color: var(--text); font-size: 12px; line-height: 1.5; }
+    .activity-date { color: var(--text-faint); font-size: 10px; margin-top: 4px; }
+
+    .complaint-row { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .complaint-row:last-child { border-bottom: none; }
+    .complaint-status {
+      display: inline-block; font-size: 9px; font-weight: 700; text-transform: uppercase;
+      padding: 2px 6px; border-radius: 3px; margin-left: 6px; letter-spacing: 0.05em;
+    }
+    .status-open { background: rgba(245,158,11,0.15); color: #fcd34d; }
+    .status-escalated { background: rgba(239,68,68,0.15); color: #fca5a5; }
+    .status-resolved { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+
+    .sync-banner {
+      background: var(--indigo-soft); border: 1px solid rgba(99,102,241,0.3); border-radius: 8px;
+      padding: 10px 14px; margin: 12px; font-size: 11px; color: #a5b4fc;
+      display: flex; align-items: center; gap: 8px;
+      animation: bannerSlideIn 0.4s ease-out;
+    }
+    @keyframes bannerSlideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+    .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--indigo); box-shadow: 0 0 8px rgba(99,102,241,0.6); }
+
+    .hidden { display: none; }
+
+    /* Subtle scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="brand">LeadSquared CRM</span>
+    <span class="sync-badge">⚡ SYNC Sandbox</span>
+  </div>
+
+  <div id="sync-banner" class="sync-banner hidden">
+    <div class="sync-dot"></div>
+    <span id="sync-banner-text">SYNC just briefed the RM on this contact.</span>
+  </div>
+
+  <div class="contact-header">
+    <div class="avatar">{{ client.profile.name[0] }}</div>
+    <div>
+      <div class="contact-name">{{ client.profile.name }}</div>
+      <div class="contact-meta">{{ client.profile.occupation }} · {{ client.profile.company }}</div>
+      <div class="contact-meta">{{ client.profile.city }}</div>
+      <span class="risk-chip risk-{{ client.risk.score }}">{{ client.risk.score.replace("_", " ") }}</span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('overview', event)">Overview</div>
+    <div class="tab" onclick="showTab('activities', event)">Activities</div>
+    <div class="tab" onclick="showTab('loans', event)">Loans</div>
+    <div class="tab" onclick="showTab('complaints', event)">Complaints</div>
+  </div>
+
+  <!-- Overview -->
+  <div id="tab-overview" class="content">
+    <div class="section">
+      <div class="section-title">Basic Info</div>
+      <div class="field-row"><div class="field-label">Full Name</div><div class="field-value">{{ client.profile.name }}</div></div>
+      <div class="field-row"><div class="field-label">Age</div><div class="field-value">{{ client.profile.age }}</div></div>
+      <div class="field-row"><div class="field-label">Job Title</div><div class="field-value">{{ client.profile.occupation }}</div></div>
+      <div class="field-row"><div class="field-label">Company</div><div class="field-value">{{ client.profile.company }}</div></div>
+      <div class="field-row"><div class="field-label">City</div><div class="field-value">{{ client.profile.city }}</div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Risk Assessment</div>
+      <div class="field-row">
+        <div class="field-label">Risk Score</div>
+        <div class="field-value">{{ client.risk.score.replace("_", " ").title() }}</div>
+      </div>
+      {% for factor in client.risk.factors %}
+      <div class="field-row">
+        <div class="field-label">{% if loop.first %}Factors{% else %}&nbsp;{% endif %}</div>
+        <div class="field-value">{{ factor }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="section">
+      <div class="section-title">Cross-Sell Opportunities</div>
+      {% for cs in client.cross_sell %}
+      <div class="field-row">
+        <div class="field-label">{{ cs.product[:30] }}{% if cs.product|length > 30 %}…{% endif %}</div>
+        <div class="field-value" style="font-size:11px; color: var(--text-muted)">{{ cs.pitch_angle[:90] }}…</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Activities -->
+  <div id="tab-activities" class="content hidden">
+    <div class="section">
+      <div class="section-title">Recent Activities</div>
+      {% for interaction in client.interactions %}
+      <div class="activity-row">
+        <div class="activity-icon">{% if interaction.channel == "phone" %}📞{% elif interaction.channel == "branch" %}🏢{% elif interaction.channel == "email" %}✉{% else %}📱{% endif %}</div>
+        <div class="activity-note">
+          <div class="activity-text">{{ interaction.summary[:120] }}{% if interaction.summary|length > 120 %}…{% endif %}</div>
+          <div class="activity-date">{{ interaction.date }} · {{ interaction.rm_name }}</div>
+        </div>
+      </div>
+      {% endfor %}
+      {% if not client.interactions %}
+      <div style="padding:16px; color: var(--text-faint); text-align:center; font-size:11px;">No activities yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Loans -->
+  <div id="tab-loans" class="content hidden">
+    <div class="section">
+      <div class="section-title">Active Loans &amp; Products</div>
+      {% for product in client.products %}
+      <div class="product-card">
+        <div class="product-type">{{ product.product_type.replace("_", " ").title() }}</div>
+        <div class="product-meta">
+          {% if product.principal %}Principal: ₹{{ "{:,.0f}".format(product.principal) }}{% endif %}
+          {% if product.emi %} · EMI: ₹{{ "{:,.0f}".format(product.emi) }}/mo{% endif %}
+        </div>
+        <div class="product-meta">
+          {{ product.months_paid }}/{{ product.tenure_months }} paid · Next due {{ product.next_due_date }}
+        </div>
+      </div>
+      {% endfor %}
+      {% if not client.products %}
+      <div style="padding:16px; color: var(--text-faint); text-align:center; font-size:11px;">No active products.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Complaints -->
+  <div id="tab-complaints" class="content hidden">
+    <div class="section">
+      <div class="section-title">Complaints &amp; Cases</div>
+      {% for complaint in client.complaints %}
+      <div class="complaint-row">
+        <strong style="color: #fff;">{{ complaint.category }}</strong>
+        <span class="complaint-status status-{{ complaint.status }}">{{ complaint.status }}</span>
+        <div style="margin-top:6px; color: var(--text-muted); font-size: 11px; line-height: 1.5;">{{ complaint.summary }}</div>
+        <div class="activity-date">{{ complaint.date }}</div>
+      </div>
+      {% endfor %}
+      {% if not client.complaints %}
+      <div style="padding:16px; color: var(--text-faint); text-align:center; font-size:11px;">No complaints on record.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <script>
+    function showTab(name, evt) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('[id^="tab-"]').forEach(t => t.classList.add('hidden'));
+      evt.target.classList.add('active');
+      document.getElementById('tab-' + name).classList.remove('hidden');
+    }
+
+    window.addEventListener('message', function(evt) {
+      if (evt.data && evt.data.type === 'sync_briefing_received') {
+        const banner = document.getElementById('sync-banner');
+        const text = document.getElementById('sync-banner-text');
+        if (evt.data.summary) text.textContent = '⚡ SYNC briefed RM: ' + evt.data.summary.slice(0, 80) + '…';
+        banner.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

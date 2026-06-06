@@ -1,0 +1,34 @@
+{
+  "lsq_001": [
+    {
+      "TicketId": "CMP_001",
+      "ProspectID": "lsq_001",
+      "Category": "Branch Experience",
+      "Description": "Waited 40 minutes at Koramangala branch for document submission. Not acceptable for premium customer.",
+      "Status": "open",
+      "CreatedDate": "PAST_7"
+    }
+  ],
+  "lsq_002": [],
+  "lsq_003": [
+    {
+      "TicketId": "CMP_002",
+      "ProspectID": "lsq_003",
+      "Category": "Loan Restructuring",
+      "Description": "Submitted restructuring request 20 days ago. No response from credit team yet. Amit is frustrated.",
+      "Status": "escalated",
+      "CreatedDate": "PAST_20"
+    }
+  ],
+  "lsq_004": [],
+  "lsq_005": [
+    {
+      "TicketId": "CMP_003",
+      "ProspectID": "lsq_005",
+      "Category": "Late Payment Charges",
+      "Description": "Vikram disputes ₹42,000 late payment charges. Claims he was given verbal assurance of grace period extension.",
+      "Status": "open",
+      "CreatedDate": "PAST_15"
+    }
+  ]
+}

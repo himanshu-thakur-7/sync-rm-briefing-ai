@@ -1,0 +1,71 @@
+services:
+  - type: web
+    name: sync-backend
+    env: python
+    plan: free
+    buildCommand: "pip install -r artifacts/sync-backend/requirements.txt"
+    startCommand: "cd artifacts/sync-backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: RINGG_API_KEY
+        sync: false
+      - key: RINGG_AGENT_ID
+        sync: false
+      - key: RINGG_FROM_NUMBER_ID
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: HUBSPOT_CLIENT_ID
+        sync: false
+      - key: HUBSPOT_CLIENT_SECRET
+        sync: false
+      - key: SALESFORCE_CLIENT_ID
+        sync: false
+      - key: SALESFORCE_CLIENT_SECRET
+        sync: false
+      - key: ZOHO_CLIENT_ID
+        sync: false
+      - key: ZOHO_CLIENT_SECRET
+        sync: false
+      - key: DYNAMICS_CLIENT_ID
+        sync: false
+      - key: DYNAMICS_CLIENT_SECRET
+        sync: false
+      - key: DYNAMICS_TENANT_ID
+        sync: false
+      - key: DYNAMICS_INSTANCE_URL
+        sync: false
+      - key: FRESHWORKS_SUBDOMAIN
+        sync: false
+      - key: FRESHWORKS_API_KEY
+        sync: false
+      - key: LEADSQUARED_ACCESS_KEY
+        sync: false
+      - key: LEADSQUARED_SECRET_KEY
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: WEBHOOK_SECRET
+        generateValue: true
+      - key: OAUTH_REDIRECT_BASE
+        value: "https://sync-backend.onrender.com"
+      - key: FRONTEND_URL
+        value: "https://sync-dashboard.vercel.app"
+      - key: BACKEND_URL
+        value: "https://sync-backend.onrender.com"
+      - key: CRM_ADAPTER
+        value: "mock"
+      - key: CORS_EXTRA_ORIGIN
+        value: "https://sync-dashboard.vercel.app"
+    rootDir: .
+
+  - type: web
+    name: sync-dashboard
+    env: static
+    buildCommand: "pnpm install && pnpm --filter @workspace/sync-dashboard build"
+    staticPublishPath: artifacts/sync-dashboard/dist
+    envVars:
+      - key: VITE_API_URL
+        value: "https://sync-backend.onrender.com"
+      - key: VITE_WS_URL
+        value: "wss://sync-backend.onrender.com"
+    rootDir: .

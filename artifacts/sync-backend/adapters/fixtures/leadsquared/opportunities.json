@@ -1,0 +1,100 @@
+{
+  "lsq_001": [
+    {
+      "OpportunityId": "opp_001_a",
+      "ProspectID": "lsq_001",
+      "ProductType": "home_loan",
+      "Principal": 4200000,
+      "EMIAmount": 34800,
+      "TenureMonths": 240,
+      "MonthsPaid": 14,
+      "NextDueDate": "DUE_4",
+      "PaymentHistory": "on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time"
+    }
+  ],
+  "lsq_002": [
+    {
+      "OpportunityId": "opp_002_a",
+      "ProspectID": "lsq_002",
+      "ProductType": "car_loan",
+      "Principal": 1200000,
+      "EMIAmount": 22500,
+      "TenureMonths": 60,
+      "MonthsPaid": 28,
+      "NextDueDate": "DUE_10",
+      "PaymentHistory": "on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time"
+    },
+    {
+      "OpportunityId": "opp_002_b",
+      "ProspectID": "lsq_002",
+      "ProductType": "fd",
+      "Principal": 800000,
+      "EMIAmount": 0,
+      "TenureMonths": 24,
+      "MonthsPaid": 6,
+      "NextDueDate": "DUE_180",
+      "PaymentHistory": "on_time,on_time,on_time,on_time,on_time,on_time"
+    }
+  ],
+  "lsq_003": [
+    {
+      "OpportunityId": "opp_003_a",
+      "ProspectID": "lsq_003",
+      "ProductType": "business_loan",
+      "Principal": 8500000,
+      "EMIAmount": 125000,
+      "TenureMonths": 84,
+      "MonthsPaid": 22,
+      "NextDueDate": "DUE_15",
+      "PaymentHistory": "on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,missed,on_time,delayed_3_days"
+    },
+    {
+      "OpportunityId": "opp_003_b",
+      "ProspectID": "lsq_003",
+      "ProductType": "credit_card",
+      "Principal": 0,
+      "EMIAmount": 0,
+      "TenureMonths": 0,
+      "MonthsPaid": 0,
+      "NextDueDate": "DUE_8",
+      "PaymentHistory": "on_time,on_time,missed,on_time,on_time"
+    }
+  ],
+  "lsq_004": [
+    {
+      "OpportunityId": "opp_004_a",
+      "ProspectID": "lsq_004",
+      "ProductType": "personal_loan",
+      "Principal": 600000,
+      "EMIAmount": 14200,
+      "TenureMonths": 48,
+      "MonthsPaid": 8,
+      "NextDueDate": "DUE_7",
+      "PaymentHistory": "on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time"
+    }
+  ],
+  "lsq_005": [
+    {
+      "OpportunityId": "opp_005_a",
+      "ProspectID": "lsq_005",
+      "ProductType": "business_loan",
+      "Principal": 25000000,
+      "EMIAmount": 380000,
+      "TenureMonths": 96,
+      "MonthsPaid": 18,
+      "NextDueDate": "DUE_5",
+      "PaymentHistory": "on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,on_time,missed,missed,delayed_7_days,on_time"
+    },
+    {
+      "OpportunityId": "opp_005_b",
+      "ProspectID": "lsq_005",
+      "ProductType": "credit_card",
+      "Principal": 0,
+      "EMIAmount": 0,
+      "TenureMonths": 0,
+      "MonthsPaid": 0,
+      "NextDueDate": "DUE_5",
+      "PaymentHistory": "on_time,missed,missed,on_time,missed"
+    }
+  ]
+}

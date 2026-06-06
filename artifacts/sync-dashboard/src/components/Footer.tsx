@@ -1,7 +1,10 @@
 export function Footer() {
   return (
-    <footer className="border-t border-border/50 py-6 mt-12 text-center text-xs text-muted-foreground">
-      <p className="font-mono tracking-wider">SYNC <span className="opacity-50">///</span> INTELLIGENCE DELIVERED</p>
+    <footer className="mt-12 border-t border-white/[0.04] py-6 text-center">
+      <p className="text-[11px] text-slate-700">
+        SYNC — GrowthX Voice AI Buildathon · Powered by{" "}
+        <span className="text-indigo-500/70">Ringg AI</span>
+      </p>
     </footer>
   );
 }

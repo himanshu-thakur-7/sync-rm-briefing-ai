@@ -1,0 +1,102 @@
+{
+  "lsq_001": [
+    {
+      "ActivityId": "act_001_a",
+      "ProspectID": "lsq_001",
+      "ActivityType": 5,
+      "ActivityTypeName": "Phone Call",
+      "ActivityDate": "PAST_45",
+      "Note": "Routine check-in, discussed home insurance options. Rahul mentioned he's planning a home renovation in 6 months.",
+      "OwnerName": "Deepak Sharma"
+    },
+    {
+      "ActivityId": "act_001_b",
+      "ProspectID": "lsq_001",
+      "ActivityType": 3,
+      "ActivityTypeName": "Branch Visit",
+      "ActivityDate": "PAST_90",
+      "Note": "First loan disbursement meeting. Smooth onboarding.",
+      "OwnerName": "Deepak Sharma"
+    }
+  ],
+  "lsq_002": [
+    {
+      "ActivityId": "act_002_a",
+      "ProspectID": "lsq_002",
+      "ActivityType": 6,
+      "ActivityTypeName": "Email",
+      "ActivityDate": "PAST_12",
+      "Note": "Priya asked about home loan eligibility. Mentioned they're looking to buy a 2BHK in Powai by end of year.",
+      "OwnerName": "Anita Verma"
+    },
+    {
+      "ActivityId": "act_002_b",
+      "ProspectID": "lsq_002",
+      "ActivityType": 9,
+      "ActivityTypeName": "App Interaction",
+      "ActivityDate": "PAST_60",
+      "Note": "Self-service FD renewal. No issues.",
+      "OwnerName": "Anita Verma"
+    }
+  ],
+  "lsq_003": [
+    {
+      "ActivityId": "act_003_a",
+      "ProspectID": "lsq_003",
+      "ActivityType": 5,
+      "ActivityTypeName": "Phone Call",
+      "ActivityDate": "PAST_30",
+      "Note": "Amit mentioned supply chain disruption from Bangladesh. Expects recovery by Q3. Sounded stressed.",
+      "OwnerName": "Vijay Nair"
+    },
+    {
+      "ActivityId": "act_003_b",
+      "ProspectID": "lsq_003",
+      "ActivityType": 3,
+      "ActivityTypeName": "Branch Visit",
+      "ActivityDate": "PAST_85",
+      "Note": "Loan restructuring discussion — not yet actioned. Amit wants to extend tenure by 12 months.",
+      "OwnerName": "Vijay Nair"
+    }
+  ],
+  "lsq_004": [
+    {
+      "ActivityId": "act_004_a",
+      "ProspectID": "lsq_004",
+      "ActivityType": 9,
+      "ActivityTypeName": "App Interaction",
+      "ActivityDate": "PAST_5",
+      "Note": "Sneha checked home loan eligibility on the app. Spent 8 minutes on the calculator.",
+      "OwnerName": "Rekha Pillai"
+    },
+    {
+      "ActivityId": "act_004_b",
+      "ProspectID": "lsq_004",
+      "ActivityType": 5,
+      "ActivityTypeName": "Phone Call",
+      "ActivityDate": "PAST_65",
+      "Note": "Personal loan disbursement follow-up. Smooth process. She asked about investment options.",
+      "OwnerName": "Rekha Pillai"
+    }
+  ],
+  "lsq_005": [
+    {
+      "ActivityId": "act_005_a",
+      "ProspectID": "lsq_005",
+      "ActivityType": 5,
+      "ActivityTypeName": "Phone Call",
+      "ActivityDate": "PAST_22",
+      "Note": "Vikram called to discuss payment difficulty. 2 govt contracts delayed by 6 months. Mentioned expecting payment by month end.",
+      "OwnerName": "Suresh Iyer"
+    },
+    {
+      "ActivityId": "act_005_b",
+      "ProspectID": "lsq_005",
+      "ActivityType": 3,
+      "ActivityTypeName": "Branch Visit",
+      "ActivityDate": "PAST_75",
+      "Note": "Quarterly review meeting. Discussed new project pipeline worth ₹80Cr. Seemed optimistic.",
+      "OwnerName": "Suresh Iyer"
+    }
+  ]
+}

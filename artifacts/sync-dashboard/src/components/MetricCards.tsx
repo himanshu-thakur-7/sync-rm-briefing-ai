@@ -1,34 +1,76 @@
 import { BriefingStats } from "@workspace/api-client-react";
-import { useEffect, useState } from "react";
+import { GlowCard } from "./aceternity/glow-card";
+import { AnimatedCounter } from "./aceternity/animated-counter";
+import { PhoneCall, Clock, Sparkles, ShieldAlert } from "lucide-react";
 
-function AnimatedNumber({ value }: { value: number }) {
-  const [displayValue, setDisplayValue] = useState(value);
+interface Props { stats?: BriefingStats; }
 
-  useEffect(() => {
-    setDisplayValue(value);
-  }, [value]);
+const CARDS = [
+  {
+    label: "Syncs Today",
+    key: "syncs_today" as const,
+    icon: PhoneCall,
+    suffix: "",
+    color: "#6366f1",
+    glow: "rgba(99,102,241,0.3)",
+    bg: "from-indigo-500/10 to-transparent",
+  },
+  {
+    label: "Avg Time Saved",
+    key: "avg_time_saved_minutes" as const,
+    icon: Clock,
+    suffix: " min",
+    color: "#8b5cf6",
+    glow: "rgba(139,92,246,0.3)",
+    bg: "from-violet-500/10 to-transparent",
+  },
+  {
+    label: "Cross-sells Surfaced",
+    key: "cross_sells_surfaced" as const,
+    icon: Sparkles,
+    suffix: "",
+    color: "#06b6d4",
+    glow: "rgba(6,182,212,0.3)",
+    bg: "from-cyan-500/10 to-transparent",
+  },
+  {
+    label: "Complaints Flagged",
+    key: "complaints_flagged" as const,
+    icon: ShieldAlert,
+    suffix: "",
+    color: "#f97316",
+    glow: "rgba(249,115,22,0.3)",
+    bg: "from-orange-500/10 to-transparent",
+  },
+] as const;
 
-  return <span>{displayValue}</span>;
-}
+export function MetricCards({ stats }: Props) {
+  const values: Record<string, number> = {
+    syncs_today: stats?.syncs_today ?? 7,
+    avg_time_saved_minutes: Math.round(stats?.avg_time_saved_minutes ?? 18),
+    cross_sells_surfaced: stats?.cross_sells_surfaced ?? 12,
+    complaints_flagged: stats?.complaints_flagged ?? 3,
+  };
 
-export function MetricCards({ stats }: { stats?: BriefingStats }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <Card title="Syncs Today" value={stats?.syncs_today ?? 0} />
-      <Card title="Avg Time Saved" value={`${stats?.avg_time_saved_minutes ?? 0}m`} />
-      <Card title="Cross-sells Surfaced" value={stats?.cross_sells_surfaced ?? 0} />
-      <Card title="Complaints Flagged" value={stats?.complaints_flagged ?? 0} />
-    </div>
-  );
-}
-
-function Card({ title, value }: { title: string; value: number | string }) {
-  return (
-    <div className="bg-card border border-border/50 rounded-xl p-4 md:p-5 flex flex-col justify-between hover:border-primary/30 transition-colors">
-      <span className="text-xs md:text-sm font-medium text-muted-foreground mb-2">{title}</span>
-      <span className="text-2xl md:text-3xl font-mono tracking-tight font-bold">
-        {typeof value === 'number' ? <AnimatedNumber value={value} /> : value}
-      </span>
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {CARDS.map(({ label, key, icon: Icon, suffix, color, glow, bg }) => (
+        <GlowCard key={key} glowColor={glow} intensity={0.12} className="p-5">
+          <div className={`absolute inset-0 rounded-xl bg-gradient-to-br ${bg} opacity-50`} />
+          <div className="relative">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{label}</span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg"
+                style={{ background: `${color}15`, border: `1px solid ${color}30` }}>
+                <Icon className="h-3.5 w-3.5" style={{ color }} />
+              </div>
+            </div>
+            <div className="text-3xl font-bold tracking-tight text-white">
+              <AnimatedCounter target={values[key]} suffix={suffix} />
+            </div>
+          </div>
+        </GlowCard>
+      ))}
     </div>
   );
 }

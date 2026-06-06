@@ -1,0 +1,106 @@
+[
+  {
+    "ProspectID": "lsq_001",
+    "FirstName": "Rahul",
+    "LastName": "Mehta",
+    "EmailAddress": "rahul.mehta@infosys.com",
+    "Phone": "+919845001001",
+    "JobTitle": "Senior Manager",
+    "Company": "Infosys",
+    "City": "Bengaluru",
+    "Fields": [
+      {"SchemaName": "mx_Risk_Score", "Value": "low"},
+      {"SchemaName": "mx_Risk_Factors", "Value": "Clean 14-month payment track record|Stable employment at Infosys"},
+      {"SchemaName": "mx_Last_RM_Interaction_Days", "Value": "45"},
+      {"SchemaName": "mx_Cross_Sell_Product_1", "Value": "Personal Loan Top-Up ₹5,00,000"},
+      {"SchemaName": "mx_Cross_Sell_Pitch_1", "Value": "Position it as a reward for his clean track record — 'You've been our most reliable home loan customer, so we're able to offer you a top-up at a preferential rate.'"},
+      {"SchemaName": "mx_Cross_Sell_Value_1", "Value": "500000"},
+      {"SchemaName": "mx_Cross_Sell_Product_2", "Value": "SIP / Mutual Funds ₹10,000/month"},
+      {"SchemaName": "mx_Cross_Sell_Pitch_2", "Value": "Last June he mentioned saving for his daughter's school admission in 2028. A ₹10,000/month SIP gets him there in 3 years. Tie it to his daughter, not to returns."},
+      {"SchemaName": "mx_Cross_Sell_Value_2", "Value": "120000"},
+      {"SchemaName": "mx_DOB", "Value": "1986-03-15"}
+    ]
+  },
+  {
+    "ProspectID": "lsq_002",
+    "FirstName": "Priya",
+    "LastName": "Sharma",
+    "EmailAddress": "priya.sharma@unilever.com",
+    "Phone": "+919845002002",
+    "JobTitle": "Marketing Director",
+    "Company": "Unilever India",
+    "City": "Mumbai",
+    "Fields": [
+      {"SchemaName": "mx_Risk_Score", "Value": "very_low"},
+      {"SchemaName": "mx_Risk_Factors", "Value": "28 consecutive on-time payments|FD holding demonstrates savings discipline|Dual income household"},
+      {"SchemaName": "mx_Last_RM_Interaction_Days", "Value": "12"},
+      {"SchemaName": "mx_Cross_Sell_Product_1", "Value": "Home Loan ₹65,00,000"},
+      {"SchemaName": "mx_Cross_Sell_Pitch_1", "Value": "She's been house-hunting for 6 months and mentioned a 2BHK in Powai. Her FD and dual income make this a textbook pre-approval conversation."},
+      {"SchemaName": "mx_Cross_Sell_Value_1", "Value": "6500000"},
+      {"SchemaName": "mx_Cross_Sell_Product_2", "Value": "Platinum Credit Card"},
+      {"SchemaName": "mx_Cross_Sell_Pitch_2", "Value": "She travels frequently for work to Dubai and Singapore. A travel-rewards card with lounge access is a no-brainer pitch."},
+      {"SchemaName": "mx_Cross_Sell_Value_2", "Value": "0"},
+      {"SchemaName": "mx_DOB", "Value": "1990-07-22"}
+    ]
+  },
+  {
+    "ProspectID": "lsq_003",
+    "FirstName": "Amit",
+    "LastName": "Kulkarni",
+    "EmailAddress": "amit@kulkarnitextiles.com",
+    "Phone": "+919845003003",
+    "JobTitle": "Proprietor",
+    "Company": "Kulkarni Textiles",
+    "City": "Pune",
+    "Fields": [
+      {"SchemaName": "mx_Risk_Score", "Value": "watch"},
+      {"SchemaName": "mx_Risk_Factors", "Value": "Revenue dip 18% QoQ due to textile sector slowdown|Missed one EMI in last 3 months|CC utilization at 78%|GST filings delayed by 2 quarters"},
+      {"SchemaName": "mx_Last_RM_Interaction_Days", "Value": "30"},
+      {"SchemaName": "mx_Cross_Sell_Product_1", "Value": "Working Capital OD ₹15,00,000"},
+      {"SchemaName": "mx_Cross_Sell_Pitch_1", "Value": "Don't pitch it as 'you need help' — pitch it as 'smart businesses keep a buffer for exactly these cycles'. Frame it as strategic, not distress."},
+      {"SchemaName": "mx_Cross_Sell_Value_1", "Value": "1500000"},
+      {"SchemaName": "mx_DOB", "Value": "1979-11-03"}
+    ]
+  },
+  {
+    "ProspectID": "lsq_004",
+    "FirstName": "Sneha",
+    "LastName": "Reddy",
+    "EmailAddress": "sneha.reddy@google.com",
+    "Phone": "+919845004004",
+    "JobTitle": "Software Engineer",
+    "Company": "Google India",
+    "City": "Hyderabad",
+    "Fields": [
+      {"SchemaName": "mx_Risk_Score", "Value": "very_low"},
+      {"SchemaName": "mx_Risk_Factors", "Value": "Google ESOP vesting cycle confirmed|High salary-to-EMI ratio (8:1)|Young professional with growth trajectory"},
+      {"SchemaName": "mx_Last_RM_Interaction_Days", "Value": "5"},
+      {"SchemaName": "mx_Cross_Sell_Product_1", "Value": "Home Loan ₹75,00,000"},
+      {"SchemaName": "mx_Cross_Sell_Pitch_1", "Value": "She's already done the math — she just needs someone to make it feel real. Don't pitch the product, pitch the possibility: 'You're literally 2 steps away from owning that flat.'"},
+      {"SchemaName": "mx_Cross_Sell_Value_1", "Value": "7500000"},
+      {"SchemaName": "mx_Cross_Sell_Product_2", "Value": "ESOP-Backed Overdraft ₹20,00,000"},
+      {"SchemaName": "mx_Cross_Sell_Pitch_2", "Value": "Her ESOPs vest in 8 months. She probably doesn't know she can use them as collateral today — that's your edge."},
+      {"SchemaName": "mx_Cross_Sell_Value_2", "Value": "2000000"},
+      {"SchemaName": "mx_DOB", "Value": "1995-04-18"}
+    ]
+  },
+  {
+    "ProspectID": "lsq_005",
+    "FirstName": "Vikram",
+    "LastName": "Desai",
+    "EmailAddress": "vikram@desaiinfra.com",
+    "Phone": "+919845005005",
+    "JobTitle": "Managing Director",
+    "Company": "Desai Infrastructure Ltd",
+    "City": "Ahmedabad",
+    "Fields": [
+      {"SchemaName": "mx_Risk_Score", "Value": "high"},
+      {"SchemaName": "mx_Risk_Factors", "Value": "CC utilization at 92% — maxed out|2 missed business loan EMIs in last 4 months|Infrastructure sector slowdown, 3 projects stalled|Personal guarantor on 2 other loans with different banks|NPA classification risk in 45 days if pattern continues"},
+      {"SchemaName": "mx_Last_RM_Interaction_Days", "Value": "22"},
+      {"SchemaName": "mx_Cross_Sell_Product_1", "Value": "CC Balance-to-PL Transfer ₹8,00,000"},
+      {"SchemaName": "mx_Cross_Sell_Pitch_1", "Value": "Don't pitch this as 'we noticed your CC is maxed.' Pitch it as 'I've found a way to save you about ₹3 lakh in interest this year.' Lead with the savings number."},
+      {"SchemaName": "mx_Cross_Sell_Value_1", "Value": "800000"},
+      {"SchemaName": "mx_DOB", "Value": "1972-09-28"}
+    ]
+  }
+]
