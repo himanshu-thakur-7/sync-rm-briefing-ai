@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
+export interface Complaint {
+  id: string;
+  date: string;
+  category: string;
+  summary: string;
   status: string;
 }

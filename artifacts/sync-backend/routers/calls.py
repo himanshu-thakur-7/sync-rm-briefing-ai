@@ -1,0 +1,140 @@
+import uuid
+import time
+import logging
+from datetime import datetime
+from fastapi import APIRouter, HTTPException
+from models import SyncRequest, SyncResponse, BriefingLog
+from services.crm_factory import crm
+from services.briefing_engine import generate_briefing
+from services.ringg_service import ringg_service
+from config import settings
+import database
+
+router = APIRouter(prefix="/v1/calls", tags=["calls"])
+logger = logging.getLogger(__name__)
+
+
+@router.post("/sync-now", response_model=SyncResponse)
+async def sync_now(request: SyncRequest):
+    """
+    Trigger an outbound briefing call to the RM.
+
+    Flow:
+    1. Fetch full client profile from CRM adapter
+    2. Generate briefing text using briefing_engine (GPT-4o or template)
+    3. Build custom_args_values payload for Ringg
+    4. Call Ringg API to initiate outbound call
+    5. Log the briefing
+    6. Return call_id and briefing preview
+    """
+    start_time = time.time()
+
+    # 1. Fetch client profile
+    client = await crm().get_client(request.client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail=f"Client '{request.client_id}' not found")
+
+    # 2. Generate briefing
+    briefing_text = await generate_briefing(client)
+
+    # 3. Build Ringg custom args
+    open_complaints = [c for c in client.complaints if c.status == "open"]
+    complaint_summary = open_complaints[0].summary[:100] if open_complaints else "None"
+
+    primary_cs = client.cross_sell[0] if client.cross_sell else None
+    secondary_cs = client.cross_sell[1] if len(client.cross_sell) > 1 else None
+
+    portfolio_parts = []
+    for prod in client.products:
+        portfolio_parts.append(
+            f"{prod.product_type.replace('_',' ').title()}: "
+            f"₹{prod.principal/100000:.0f}L, EMI ₹{prod.emi:,.0f}/mo, "
+            f"due {prod.next_due_date}"
+        )
+    portfolio_summary = " | ".join(portfolio_parts) if portfolio_parts else "No active products"
+
+    hinglish_closers = [
+        "Kuch aur chahiye ya ready ho? Best of luck!",
+        "Chalo phir, meeting mein best of luck!",
+        "Aur kuch? Nahi? Perfect, jaao — go get 'em!",
+    ]
+    import hashlib
+    h = int(hashlib.md5(client.profile.client_id.encode()).hexdigest(), 16)
+    hinglish_closer = hinglish_closers[h % len(hinglish_closers)]
+
+    custom_args = {
+        "callee_name": request.rm_name,
+        "client_name": client.profile.name,
+        "client_age": str(client.profile.age),
+        "client_occupation": f"{client.profile.occupation} at {client.profile.company}",
+        "portfolio_summary": portfolio_summary,
+        "risk_level": client.risk.score,
+        "risk_factors": ", ".join(client.risk.factors[:2]),
+        "days_since_contact": str(client.last_rm_interaction_days_ago),
+        "open_complaints": complaint_summary,
+        "cross_sell_pitch": primary_cs.pitch_angle[:200] if primary_cs else "No specific pitch at this time",
+        "cross_sell_product": primary_cs.product if primary_cs else "",
+        "secondary_pitch": secondary_cs.pitch_angle[:150] if secondary_cs else "",
+        "hinglish_closer": hinglish_closer,
+    }
+
+    # 4. Initiate Ringg call
+    latency_ms = None
+    try:
+        call_id = await ringg_service.initiate_call(
+            agent_id=settings.ringg_agent_id,
+            from_number_id=settings.ringg_from_number_id,
+            recipient_phone=request.rm_phone,
+            recipient_name=request.rm_name,
+            custom_args=custom_args,
+            callback_url=f"{settings.backend_url}/api/v1/webhooks/ringg",
+        )
+        latency_ms = int((time.time() - start_time) * 1000)
+    except Exception as e:
+        logger.error(f"Ringg call failed: {e}")
+        call_id = f"sim_{uuid.uuid4().hex[:8]}"
+        latency_ms = int((time.time() - start_time) * 1000)
+
+    # 5. Log briefing
+    key_flags = []
+    if open_complaints:
+        key_flags.append("complaint_open")
+    if client.risk.score in ("high", "watch"):
+        key_flags.append(f"risk_{client.risk.score}")
+    for factor in client.risk.factors:
+        if any(kw in factor.lower() for kw in ["miss", "delay", "utiliz", "dip"]):
+            key_flags.append(factor[:30].lower().replace(" ", "_"))
+
+    briefing_log = BriefingLog(
+        briefing_id=str(uuid.uuid4()),
+        client_id=client.profile.client_id,
+        client_name=client.profile.name,
+        rm_id=f"rm_{uuid.uuid4().hex[:4]}",
+        rm_name=request.rm_name,
+        timestamp=datetime.now().isoformat(),
+        duration_seconds=0.0,  # updated by webhook on call completion
+        key_flags=key_flags,
+        suggested_pitch=primary_cs.pitch_angle[:150] if primary_cs else "",
+        call_id=call_id,
+        risk_score=client.risk.score,
+        latency_ms=latency_ms,
+    )
+    database.BRIEFING_LOGS.append(briefing_log)
+
+    # Broadcast via WebSocket
+    from routers.webhooks import broadcast_event
+    await broadcast_event({
+        "type": "call_started",
+        "data": {
+            "call_id": call_id,
+            "client_name": client.profile.name,
+            "rm_name": request.rm_name,
+            "briefing_id": briefing_log.briefing_id,
+        },
+    })
+
+    return SyncResponse(
+        call_id=call_id,
+        status="initiated" if settings.ringg_api_key else "simulated",
+        briefing_preview=briefing_text[:300],
+    )

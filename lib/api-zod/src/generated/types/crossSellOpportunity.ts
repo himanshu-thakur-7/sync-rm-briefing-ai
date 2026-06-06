@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface CrossSellOpportunity {
+  product: string;
+  eligibility_reason: string;
+  pitch_angle: string;
+  estimated_value: number;
 }

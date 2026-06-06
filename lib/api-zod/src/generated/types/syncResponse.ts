@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
+export interface SyncResponse {
+  call_id: string;
   status: string;
+  briefing_preview: string;
 }

@@ -3,13 +3,19 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: SYNC RM Briefing Voice AI Co-Pilot API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: clients
+    description: Client data operations
+  - name: calls
+    description: Call trigger operations
+  - name: briefings
+    description: Briefing log operations
 paths:
   /healthz:
     get:
@@ -24,6 +30,213 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /v1/clients:
+    get:
+      operationId: listClients
+      tags: [clients]
+      summary: List all clients
+      description: Returns all clients for dashboard dropdown
+      responses:
+        "200":
+          description: List of clients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClientProfile"
+
+  /v1/clients/search:
+    get:
+      operationId: searchClients
+      tags: [clients]
+      summary: Search clients by name
+      description: Fuzzy match clients by name
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matching clients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClientProfile"
+
+  /v1/clients/{client_id}:
+    get:
+      operationId: getClient
+      tags: [clients]
+      summary: Get full client profile
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Full client profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientFullProfile"
+        "404":
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/clients/{client_id}/portfolio:
+    get:
+      operationId: getClientPortfolio
+      tags: [clients]
+      summary: Get client portfolio
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Portfolio products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LoanProduct"
+
+  /v1/clients/{client_id}/risk:
+    get:
+      operationId: getClientRisk
+      tags: [clients]
+      summary: Get client risk assessment
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Risk assessment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RiskAssessment"
+
+  /v1/clients/{client_id}/cross-sell:
+    get:
+      operationId: getClientCrossSell
+      tags: [clients]
+      summary: Get cross-sell opportunities
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cross-sell opportunities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CrossSellOpportunity"
+
+  /v1/clients/{client_id}/interactions:
+    get:
+      operationId: getClientInteractions
+      tags: [clients]
+      summary: Get client interactions and complaints
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Interactions and complaints
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientInteractions"
+
+  /v1/briefings:
+    get:
+      operationId: listBriefings
+      tags: [briefings]
+      summary: List briefing logs
+      description: Returns recent briefing history
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Briefing logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BriefingLog"
+
+  /v1/briefings/stats:
+    get:
+      operationId: getBriefingStats
+      tags: [briefings]
+      summary: Get briefing statistics
+      description: Dashboard KPI metrics — syncs today, avg time saved, cross-sells surfaced, complaints flagged
+      responses:
+        "200":
+          description: Briefing stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BriefingStats"
+
+  /v1/calls/sync-now:
+    post:
+      operationId: syncNow
+      tags: [calls]
+      summary: Trigger outbound briefing call
+      description: Generates briefing and triggers Ringg outbound call to RM
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncRequest"
+      responses:
+        "200":
+          description: Call initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +247,275 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    ClientProfile:
+      type: object
+      properties:
+        client_id:
+          type: string
+        name:
+          type: string
+        age:
+          type: integer
+        occupation:
+          type: string
+        company:
+          type: string
+        city:
+          type: string
+        risk_score:
+          type: string
+          description: "very_low | low | medium | watch | high"
+      required:
+        - client_id
+        - name
+        - age
+        - occupation
+        - company
+        - city
+        - risk_score
+
+    LoanProduct:
+      type: object
+      properties:
+        product_type:
+          type: string
+        principal:
+          type: number
+        emi:
+          type: number
+        tenure_months:
+          type: integer
+        months_paid:
+          type: integer
+        next_due_date:
+          type: string
+        payment_history:
+          type: array
+          items:
+            type: string
+      required:
+        - product_type
+        - principal
+        - emi
+        - tenure_months
+        - months_paid
+        - next_due_date
+        - payment_history
+
+    RiskAssessment:
+      type: object
+      properties:
+        score:
+          type: string
+        factors:
+          type: array
+          items:
+            type: string
+      required:
+        - score
+        - factors
+
+    Interaction:
+      type: object
+      properties:
+        date:
+          type: string
+        channel:
+          type: string
+        summary:
+          type: string
+        rm_name:
+          type: string
+      required:
+        - date
+        - channel
+        - summary
+        - rm_name
+
+    Complaint:
+      type: object
+      properties:
+        id:
+          type: string
+        date:
+          type: string
+        category:
+          type: string
+        summary:
+          type: string
+        status:
+          type: string
+      required:
+        - id
+        - date
+        - category
+        - summary
+        - status
+
+    CrossSellOpportunity:
+      type: object
+      properties:
+        product:
+          type: string
+        eligibility_reason:
+          type: string
+        pitch_angle:
+          type: string
+        estimated_value:
+          type: number
+      required:
+        - product
+        - eligibility_reason
+        - pitch_angle
+        - estimated_value
+
+    ClientInteractions:
+      type: object
+      properties:
+        interactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Interaction"
+        complaints:
+          type: array
+          items:
+            $ref: "#/components/schemas/Complaint"
+        last_rm_interaction_days_ago:
+          type: integer
+      required:
+        - interactions
+        - complaints
+        - last_rm_interaction_days_ago
+
+    ClientFullProfile:
+      type: object
+      properties:
+        profile:
+          $ref: "#/components/schemas/ClientProfile"
+        products:
+          type: array
+          items:
+            $ref: "#/components/schemas/LoanProduct"
+        risk:
+          $ref: "#/components/schemas/RiskAssessment"
+        interactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Interaction"
+        complaints:
+          type: array
+          items:
+            $ref: "#/components/schemas/Complaint"
+        cross_sell:
+          type: array
+          items:
+            $ref: "#/components/schemas/CrossSellOpportunity"
+        last_rm_interaction_days_ago:
+          type: integer
+      required:
+        - profile
+        - products
+        - risk
+        - interactions
+        - complaints
+        - cross_sell
+        - last_rm_interaction_days_ago
+
+    BriefingLog:
+      type: object
+      properties:
+        briefing_id:
+          type: string
+        client_id:
+          type: string
+        client_name:
+          type: string
+        rm_id:
+          type: string
+        rm_name:
+          type: string
+        timestamp:
+          type: string
+        duration_seconds:
+          type: number
+        key_flags:
+          type: array
+          items:
+            type: string
+        suggested_pitch:
+          type: string
+        call_id:
+          type: string
+        risk_score:
+          type: string
+        latency_ms:
+          type: ["integer", "null"]
+      required:
+        - briefing_id
+        - client_id
+        - client_name
+        - rm_id
+        - rm_name
+        - timestamp
+        - duration_seconds
+        - key_flags
+        - suggested_pitch
+        - call_id
+        - risk_score
+        - latency_ms
+
+    BriefingStats:
+      type: object
+      properties:
+        syncs_today:
+          type: integer
+        avg_time_saved_minutes:
+          type: number
+        cross_sells_surfaced:
+          type: integer
+        complaints_flagged:
+          type: integer
+        avg_latency_ms:
+          type: ["integer", "null"]
+      required:
+        - syncs_today
+        - avg_time_saved_minutes
+        - cross_sells_surfaced
+        - complaints_flagged
+        - avg_latency_ms
+
+    SyncRequest:
+      type: object
+      properties:
+        client_id:
+          type: string
+        rm_phone:
+          type: string
+        rm_name:
+          type: string
+      required:
+        - client_id
+        - rm_phone
+        - rm_name
+
+    SyncResponse:
+      type: object
+      properties:
+        call_id:
+          type: string
+        status:
+          type: string
+        briefing_preview:
+          type: string
+      required:
+        - call_id
+        - status
+        - briefing_preview
