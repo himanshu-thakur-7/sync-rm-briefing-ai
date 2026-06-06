@@ -1,0 +1,821 @@
+# Claude Code Prompt — Build "SYNC" RM Briefing Voice AI Co-Pilot
+
+Copy everything below this line into Claude Code or Claude Cowork.
+
+---
+
+## PROJECT BRIEF
+
+Build a production-ready hackathon project called **"SYNC"** — a Voice AI co-pilot for bank/NBFC Relationship Managers. An RM calls a phone number (or uses a web widget) before a client meeting, says the client's name, and receives a crisp 45-second voice briefing covering portfolio health, risk flags, open complaints, and a personalized cross-sell recommendation.
+
+**This is for the GrowthX Voice AI Buildathon (powered by Ringg AI).** Ringg AI is the mandatory voice platform.
+
+## ARCHITECTURE OVERVIEW
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        SYNC SYSTEM                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
+│  │  Ringg AI     │    │  FastAPI      │    │  React       │  │
+│  │  Voice Agent  │◄──►│  Backend      │◄──►│  Dashboard   │  │
+│  │  (Inbound +   │    │  (CRM API +   │    │  (Live feed  │  │
+│  │   Outbound)   │    │   Webhooks)   │    │   + metrics) │  │
+│  └──────────────┘    └──────┬───────┘    └──────────────┘  │
+│                             │                               │
+│                    ┌────────┴────────┐                      │
+│                    │  CRM Adapters   │                      │
+│                    │  ┌────────────┐ │                      │
+│                    │  │ Mock CRM   │ │                      │
+│                    │  │ HubSpot    │ │                      │
+│                    │  │ Salesforce │ │                      │
+│                    │  │ Zoho       │ │                      │
+│                    │  └────────────┘ │                      │
+│                    └─────────────────┘                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+There are TWO demo modes:
+1. **Phone call mode (primary demo):** RM calls an inbound Ringg number, says a client name, agent delivers briefing using data from the knowledge base
+2. **Dashboard mode (backup/enhanced demo):** RM opens the React dashboard, selects a client, clicks "Sync Now" — triggers a Ringg outbound call to RM's phone with `custom_args_values` pre-filled with client data from the backend API
+
+## FILE STRUCTURE
+
+```
+sync/
+├── backend/
+│   ├── main.py                    # FastAPI app entry point
+│   ├── config.py                  # Settings, env vars, Ringg config
+│   ├── models.py                  # Pydantic models for all entities
+│   ├── database.py                # Mock in-memory DB with 5 realistic clients
+│   │
+│   ├── routers/
+│   │   ├── clients.py             # Client data endpoints
+│   │   ├── briefings.py           # Briefing log endpoints
+│   │   ├── calls.py               # Ringg call trigger endpoints
+│   │   └── webhooks.py            # Ringg webhook receiver
+│   │
+│   ├── services/
+│   │   ├── briefing_engine.py     # GPT-4o briefing generation
+│   │   ├── ringg_service.py       # Ringg AI API client
+│   │   └── crm_adapter.py         # CRM adapter interface + implementations
+│   │
+│   ├── adapters/
+│   │   ├── base.py                # Abstract CRM adapter
+│   │   ├── mock_crm.py            # Mock CRM (in-memory, default)
+│   │   ├── hubspot.py             # HubSpot CRM adapter
+│   │   ├── salesforce.py          # Salesforce CRM adapter
+│   │   └── zoho.py                # Zoho CRM adapter (stub)
+│   │
+│   ├── knowledge_base/
+│   │   └── client_kb_generator.py # Generates Ringg KB upload from client data
+│   │
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   └── .env.example
+│
+├── dashboard/
+│   ├── src/
+│   │   ├── App.jsx                # Main app with routing
+│   │   ├── components/
+│   │   │   ├── MetricCards.jsx     # 4 KPI cards at top
+│   │   │   ├── LiveFeed.jsx       # Real-time sync event feed
+│   │   │   ├── ClientSelector.jsx # Search/select client for outbound sync
+│   │   │   ├── SyncNowButton.jsx  # Trigger outbound Ringg call
+│   │   │   ├── CallStatus.jsx     # Live call status indicator
+│   │   │   ├── BeforeAfter.jsx    # Before/After comparison section
+│   │   │   └── LatencyBadge.jsx   # Shows pipeline latency in real-time
+│   │   ├── hooks/
+│   │   │   └── useWebSocket.js    # WebSocket hook for live updates
+│   │   └── api/
+│   │       └── client.js          # API client for FastAPI backend
+│   ├── package.json
+│   ├── tailwind.config.js
+│   ├── vite.config.js
+│   └── index.html
+│
+├── ringg/
+│   ├── agent-config.json          # Ringg agent creation payload
+│   ├── system-prompt.md           # Full agent prompt (also embedded in agent-config)
+│   ├── knowledge-base.json        # Client data formatted for Ringg KB
+│   └── setup-guide.md             # Step-by-step Ringg dashboard setup
+│
+├── scripts/
+│   ├── setup_ringg_agent.py       # Automate Ringg agent creation via API
+│   ├── upload_knowledge_base.py   # Upload client KB to Ringg via API
+│   ├── test_call.py               # Trigger a test outbound call
+│   └── seed_demo_data.py          # Reset demo data to defaults
+│
+├── demo/
+│   ├── demo-script.md             # Exact 3-minute demo script
+│   ├── roi-talking-points.md      # ROI numbers for judges
+│   └── qa-cheatsheet.md           # Answers to expected judge questions
+│
+├── docker-compose.yml
+├── README.md
+└── .env.example
+```
+
+---
+
+## DETAILED IMPLEMENTATION SPECS
+
+### 1. BACKEND (FastAPI + Python)
+
+#### 1.1 `backend/config.py`
+
+```python
+# Use pydantic-settings for env management
+# Required env vars:
+#   RINGG_API_KEY - Ringg AI workspace API key
+#   RINGG_BASE_URL - https://prod-api.ringg.ai/ca/api/v0
+#   RINGG_AGENT_ID - Created agent's ID
+#   RINGG_FROM_NUMBER_ID - Provisioned phone number ID
+#   OPENAI_API_KEY - For GPT-4o briefing generation
+#   CRM_ADAPTER - "mock" | "hubspot" | "salesforce" | "zoho"
+#   HUBSPOT_API_KEY - (optional) HubSpot private app token
+#   SALESFORCE_INSTANCE_URL - (optional)
+#   SALESFORCE_ACCESS_TOKEN - (optional)
+#   WEBHOOK_SECRET - For verifying Ringg webhook signatures
+#   FRONTEND_URL - Dashboard URL for CORS
+```
+
+#### 1.2 `backend/models.py`
+
+Define these Pydantic models:
+
+```python
+class ClientProfile:
+    client_id: str
+    name: str
+    age: int
+    occupation: str
+    company: str
+    city: str
+
+class LoanProduct:
+    product_type: str    # "home_loan" | "personal_loan" | "business_loan" | "car_loan" | "credit_card" | "fd"
+    principal: float
+    emi: float
+    tenure_months: int
+    months_paid: int
+    next_due_date: str
+    payment_history: list[str]   # ["on_time", "on_time", "missed", "on_time"]
+
+class RiskAssessment:
+    score: str           # "very_low" | "low" | "medium" | "watch" | "high"
+    factors: list[str]   # ["cc_utilization_92%", "revenue_dip_18%_qoq"]
+
+class Interaction:
+    date: str
+    channel: str         # "phone" | "branch" | "email" | "app"
+    summary: str
+    rm_name: str
+
+class Complaint:
+    id: str
+    date: str
+    category: str
+    summary: str
+    status: str          # "open" | "resolved" | "escalated"
+
+class CrossSellOpportunity:
+    product: str
+    eligibility_reason: str
+    pitch_angle: str     # This is the KEY differentiator — WHY to pitch, tied to client's life context
+    estimated_value: float
+
+class ClientFullProfile:
+    profile: ClientProfile
+    products: list[LoanProduct]
+    risk: RiskAssessment
+    interactions: list[Interaction]
+    complaints: list[Complaint]
+    cross_sell: list[CrossSellOpportunity]
+    last_rm_interaction_days_ago: int
+
+class BriefingLog:
+    briefing_id: str
+    client_id: str
+    client_name: str
+    rm_id: str
+    rm_name: str
+    timestamp: str
+    duration_seconds: float
+    key_flags: list[str]       # ["complaint_open", "risk_high"]
+    suggested_pitch: str
+    call_id: str               # Ringg call ID
+
+class SyncRequest:
+    client_name: str           # Fuzzy matched
+    rm_phone: str              # RM's phone number for outbound call
+    rm_name: str
+
+class RinggWebhookPayload:
+    call_id: str
+    event_type: str
+    # ... other fields from Ringg webhook
+```
+
+#### 1.3 `backend/database.py`
+
+Create an in-memory mock database with **5 richly detailed clients**. Use the exact data from the blueprint (Rahul Mehta, Priya Sharma, Amit Kulkarni, Sneha Reddy, Vikram Desai).
+
+#### 1.4 `backend/routers/clients.py`
+
+Endpoints:
+```
+GET  /api/v1/clients/search?name={name}
+     - Fuzzy match using rapidfuzz (token_sort_ratio, threshold 70)
+     - Returns list of matching ClientProfile (id, name, occupation, company)
+
+GET  /api/v1/clients/{client_id}
+     - Returns full ClientFullProfile
+
+GET  /api/v1/clients/{client_id}/portfolio
+     - Returns list of LoanProduct
+
+GET  /api/v1/clients/{client_id}/risk
+     - Returns RiskAssessment
+
+GET  /api/v1/clients/{client_id}/cross-sell
+     - Returns list of CrossSellOpportunity
+
+GET  /api/v1/clients/{client_id}/interactions
+     - Returns list of Interaction + list of Complaint
+
+GET  /api/v1/clients
+     - Returns all clients (for dashboard dropdown)
+```
+
+#### 1.5 `backend/routers/calls.py`
+
+```
+POST /api/v1/calls/sync-now
+     Body: { "client_id": "...", "rm_phone": "+919...", "rm_name": "..." }
+     
+     Flow:
+     1. Fetch full client profile from CRM adapter
+     2. Generate briefing text using briefing_engine (GPT-4o)
+     3. Call Ringg API: POST /calling/outbound/individual
+        - agent_id: RINGG_AGENT_ID
+        - from_number_id: RINGG_FROM_NUMBER_ID
+        - mobile_number: rm_phone (the RM's number — SYNC calls the RM)
+        - name: rm_name
+        - custom_args_values: {
+            "callee_name": rm_name,
+            "client_name": client.name,
+            "client_age": client.age,
+            "client_occupation": f"{client.occupation} at {client.company}",
+            "portfolio_summary": <generated summary string>,
+            "risk_level": risk.score,
+            "risk_factors": ", ".join(risk.factors),
+            "days_since_contact": last_interaction_days,
+            "open_complaints": <complaint summary or "None">,
+            "cross_sell_pitch": <primary cross-sell pitch_angle>,
+            "cross_sell_product": <primary product name>,
+            "secondary_pitch": <secondary cross-sell if exists>,
+            "hinglish_closer": <a natural hinglish sign-off>
+          }
+        - callback_url: f"{BACKEND_URL}/api/v1/webhooks/ringg"
+     4. Store call_id in memory
+     5. Return { "call_id": "...", "status": "initiated" }
+```
+
+#### 1.6 `backend/routers/webhooks.py`
+
+```
+POST /api/v1/webhooks/ringg
+     - Receives Ringg webhook events (call_started, call_completed, 
+       platform_analysis_completed, all_processing_completed)
+     - On call_completed:
+       1. Extract call duration, transcript, call_id
+       2. Create BriefingLog entry
+       3. Push event via WebSocket to dashboard
+     - Idempotent by call_id + event_type
+     - Always return 200 quickly
+
+WebSocket /ws/dashboard
+     - Clients connect to receive real-time events
+     - Events: { type: "sync_completed", data: BriefingLog }
+     - Events: { type: "call_started", data: { call_id, client_name, rm_name } }
+```
+
+#### 1.7 `backend/services/briefing_engine.py`
+
+Uses OpenAI GPT-4o to generate briefing text from structured client data.
+
+```python
+# This is used for the "Dashboard mode" where we pre-generate the briefing
+# and pass it as custom_args_values to Ringg
+
+# System prompt for GPT-4o:
+BRIEFING_SYSTEM_PROMPT = """
+You generate RM briefing scripts for SYNC, a voice AI co-pilot.
+Given structured client data, produce a natural, conversational 45-second
+briefing script. Rules:
+
+1. Sound like a sharp colleague, NOT a report. Narrate, don't list.
+2. Order: Identity → Portfolio → Risk flags → Relationship gap → The play
+3. If risk is HIGH or there's an open complaint, lead with that
+4. Include 1-2 natural Hinglish phrases (e.g., "EMI time pe aa raha hai")
+5. End with the cross-sell recommendation tied to the client's LIFE context
+6. Keep under 120 words (maps to ~45 seconds of speech)
+7. Use contractions, filler phrases ("so here's the thing", "honestly")
+8. Never say "according to our records" or "as per your CRM"
+"""
+```
+
+#### 1.8 `backend/adapters/base.py`
+
+```python
+from abc import ABC, abstractmethod
+
+class CRMAdapter(ABC):
+    """Abstract base class for CRM integrations."""
+    
+    @abstractmethod
+    async def search_client(self, name: str) -> list[ClientProfile]:
+        """Fuzzy search clients by name."""
+        pass
+    
+    @abstractmethod
+    async def get_client(self, client_id: str) -> ClientFullProfile:
+        """Get full client profile with all data."""
+        pass
+    
+    @abstractmethod
+    async def get_portfolio(self, client_id: str) -> list[LoanProduct]:
+        pass
+    
+    @abstractmethod
+    async def get_risk(self, client_id: str) -> RiskAssessment:
+        pass
+    
+    @abstractmethod
+    async def get_cross_sell(self, client_id: str) -> list[CrossSellOpportunity]:
+        pass
+    
+    @abstractmethod
+    async def get_interactions(self, client_id: str) -> tuple[list[Interaction], list[Complaint]]:
+        pass
+    
+    @abstractmethod
+    async def log_briefing(self, briefing: BriefingLog) -> None:
+        """Log a completed briefing back to CRM."""
+        pass
+```
+
+#### 1.9 `backend/adapters/mock_crm.py`
+
+Implements `CRMAdapter` using the in-memory database from `database.py`. This is the default adapter.
+
+#### 1.10 `backend/adapters/hubspot.py`
+
+Implements `CRMAdapter` using HubSpot's API:
+- Uses `hubspot` Python SDK
+- Maps HubSpot Contact properties to ClientProfile
+- Maps HubSpot Deals to LoanProduct
+- Maps HubSpot custom properties for risk, cross-sell
+- Uses HubSpot Notes/Engagements for interactions
+- Uses HubSpot Tickets for complaints
+- Creates a HubSpot Note on `log_briefing`
+- Include clear comments showing which HubSpot properties to create/map
+
+#### 1.11 `backend/adapters/salesforce.py`
+
+Implements `CRMAdapter` using Salesforce REST API:
+- Uses `simple-salesforce` Python library
+- Maps SF Contact/Account to ClientProfile
+- Maps SF Opportunity to LoanProduct
+- Maps SF custom objects for risk scoring
+- Uses SF Case for complaints
+- Uses SF Task/Activity for interactions
+- Creates SF Task on `log_briefing`
+- Include clear property/field mapping comments
+
+#### 1.12 `backend/services/ringg_service.py`
+
+Ringg AI API client:
+
+```python
+class RinggService:
+    BASE_URL = "https://prod-api.ringg.ai/ca/api/v0"
+    
+    async def create_agent(self, config: dict) -> str:
+        """POST /public/agent — Create the SYNC assistant"""
+        # Returns agent_id
+    
+    async def get_voices(self, language: str = "en-IN") -> list:
+        """GET /agent/voices?language=en-IN"""
+        # Returns available voice options
+    
+    async def initiate_call(self, 
+        agent_id: str,
+        from_number_id: str,
+        recipient_phone: str,
+        recipient_name: str,
+        custom_args: dict,
+        callback_url: str
+    ) -> str:
+        """POST /calling/outbound/individual — Trigger briefing call to RM"""
+        # Returns call_id
+    
+    async def get_call_details(self, call_id: str) -> dict:
+        """GET /calling/history/{call_id}"""
+    
+    async def upload_knowledge_base(self, name: str, content: str) -> str:
+        """POST /kb — Upload client data as knowledge base"""
+        # For inbound mode: agent uses KB to look up clients
+    
+    async def setup_webhooks(self, agent_id: str, callback_url: str):
+        """PATCH /agent/v1 — Subscribe to call events"""
+        # Subscribe to: call_completed, platform_analysis_completed, 
+        #               all_processing_completed
+```
+
+All methods should use `httpx.AsyncClient` with proper error handling, retries, and the `X-API-KEY` header.
+
+#### 1.13 `backend/knowledge_base/client_kb_generator.py`
+
+Generates a knowledge base document from all client data, formatted for Ringg AI upload.
+
+```python
+def generate_kb_document(clients: list[ClientFullProfile]) -> str:
+    """
+    Generates a structured text document containing all client data,
+    formatted so the Ringg AI agent can look up any client by name
+    during an inbound call.
+    
+    Format per client:
+    
+    === CLIENT: Rahul Mehta ===
+    Full Name: Rahul Mehta
+    Age: 38
+    Occupation: Senior Manager at Infosys, Bengaluru
+    
+    PORTFOLIO:
+    - Home Loan: ₹42,00,000 principal, ₹34,800 EMI/month
+      Tenure: 240 months, 14 months paid, next due: [date]
+      Payment Record: 14 consecutive on-time payments
+    
+    RISK: Low
+    Factors: Clean 14-month track record
+    
+    LAST RM CONTACT: 45 days ago
+    Channel: Phone
+    Summary: Routine check-in, discussed home insurance options
+    
+    OPEN COMPLAINTS:
+    - Branch Wait Time (7 days ago, OPEN)
+      "Waited 40 minutes at Koramangala branch for document submission"
+    
+    CROSS-SELL OPPORTUNITIES:
+    1. Personal Loan Top-Up ₹5,00,000
+       Why: Salary growth + clean history
+       Pitch Angle: Position as a reward for his clean track record
+    
+    2. SIP/Mutual Funds
+       Why: Mentioned child education goal
+       Pitch Angle: In June last year he mentioned saving for his daughter's 
+       school admission in 2028. A ₹10,000/month SIP gets him there. 
+       Tie it to his daughter, not to returns.
+    === END CLIENT ===
+    """
+```
+
+### 2. RINGG AGENT CONFIGURATION
+
+#### 2.1 `ringg/agent-config.json`
+
+```json
+{
+  "agent_name": "SYNC - RM Briefing Co-Pilot",
+  "agent_type": "outbound_inbound",
+  "primary_language": "en-IN",
+  "secondary_language": "hi-IN",
+  "intro_message": "Hey! This is SYNC. Which client are you meeting today?",
+  "introduction_and_objective": "You are SYNC, a voice AI co-pilot for Relationship Managers at an Indian bank. When an RM calls you or you call an RM, your job is to deliver a crisp, warm, 45-second briefing about their client so they walk into the meeting fully prepared. You sound like a sharp, friendly colleague — never a bot.",
+  "response_guidelines": "Sound conversational, not robotic. Use natural fillers (so here's the thing, honestly, look). Code-switch to Hinglish naturally when it fits (e.g. EMI time pe aa raha hai). Never sound like you're reading a report — you're TELLING someone about a person you know. Handle interruptions gracefully. If the RM asks a follow-up, answer from the data. Keep the full briefing under 60 seconds. If risk is HIGH or there's an open complaint, lead with that — never bury bad news. End with the cross-sell play tied to the client's life context, not just product eligibility.",
+  "task": "When the RM tells you a client name, look up the client from your knowledge base. Then deliver a briefing in this EXACT order: (1) Identity anchor — name, age, job, one human detail, 5 seconds. (2) Portfolio snapshot — products, EMI amounts, payment track record, 10 seconds. (3) Risk flag — any red or amber signals, say it plainly, 5 seconds. (4) Relationship gap — days since last interaction, open complaints, 5 seconds. (5) The play — what to pitch today and WHY, tied to client's life context, 15 seconds. Then ask: That's the quick sync. Anything specific, or are you good to walk in? If they say they're good, sign off warmly with a Hinglish line.",
+  "faq": "Q: What if I don't know the client's name yet? A: No worries — just call me back when you have it, or tell me the meeting time and I'll figure it out.\nQ: Can you email me this briefing? A: I don't have email access yet, but everything I just said is logged in the CRM.\nQ: Is this data up to date? A: It's refreshed daily from the core banking system. For anything real-time like today's transactions, you'd want to check the app.",
+  "sample_conversations": "User: I'm about to meet Rahul Mehta\nAgent: Alright, so Rahul Mehta — 38, senior manager at Infosys, been with us about 14 months now. He's got a home loan, 42 lakhs, EMI is 34,800, next one's due in 4 days. And honestly, clean record — hasn't missed a single payment. So that's solid.\n\nOne thing though — he raised a complaint last week about branch wait times. It's still open. So if he brings it up, don't get caught off guard, maybe acknowledge it upfront.\n\nNow here's the interesting part — he's eligible for a personal loan top-up, 5 lakhs. But I'd actually lead with the SIP pitch. Last June he mentioned something about saving for his kid's education, and we never followed up on that. That's your opening.\n\nKuch aur chahiye ya ready ho?\nUser: What was his EMI amount again?\nAgent: 34,800 per month. Next due date is in 4 days, so he might bring that up too. Anything else?\nUser: No I'm good.\nAgent: Perfect. Go get 'em. I'll log this touchpoint. Good luck!",
+  "custom_variables": [
+    "callee_name",
+    "client_name",
+    "client_age",
+    "client_occupation",
+    "portfolio_summary",
+    "risk_level",
+    "risk_factors",
+    "days_since_contact",
+    "open_complaints",
+    "cross_sell_pitch",
+    "cross_sell_product",
+    "secondary_pitch",
+    "hinglish_closer"
+  ]
+}
+```
+
+#### 2.2 `ringg/system-prompt.md`
+
+Full system prompt for the Ringg agent (this goes into `introduction_and_objective` + `response_guidelines` + `task` fields):
+
+```markdown
+# You are SYNC
+
+You are a voice AI co-pilot for Relationship Managers at an Indian bank/NBFC.
+An RM calls you before a client meeting. Your job: deliver a crisp, warm,
+45-second briefing so the RM walks in fully prepared.
+
+## Your personality
+- Sound like a sharp, friendly colleague — not a bot, not a call center
+- Confident but not robotic. Use natural fillers ("So here's the thing about Rahul...")
+- Speak in English by default, but naturally code-switch to Hinglish
+  when it fits ("EMI time pe aa raha hai, no issues there")
+- NEVER sound like you're reading a report — TELL the story of a person
+
+## For OUTBOUND calls (dashboard triggered):
+- You already have client data in your custom variables
+- Start with: "Hey @{{callee_name}}! Got your sync ready for @{{client_name}}. Here goes..."
+- Deliver the briefing using the custom variable data
+
+## For INBOUND calls (RM called):
+- Start with: "Hey! This is SYNC. Which client are you meeting today?"
+- When RM says a name, look it up in your knowledge base
+- If found, deliver the briefing
+- If not found, say: "I'm not finding anyone by that name — could you spell it out or give me a last name?"
+
+## Briefing structure (ALWAYS this order):
+1. Identity anchor (5 sec): Name, age, job, one human detail
+2. Portfolio snapshot (10 sec): Products, amounts, EMI status — narrated, NOT listed
+3. Risk flag (5 sec): Red/amber signals said plainly. If HIGH, lead the whole briefing with this
+4. Relationship gap (5 sec): Days since last contact + open complaints
+   - If there's an open complaint, ALWAYS mention it (worst thing = RM walks in unaware)
+5. The play (15 sec): What to pitch and WHY — tied to client's life context, not just eligibility
+
+## Rules
+- NEVER exceed 60 seconds for the full briefing
+- If risk is HIGH, restructure: lead with risk, then portfolio, then the play
+- Handle interruptions gracefully — answer the question, offer to continue
+- If you don't know something: "I don't have visibility on that, might want to check the system"
+- End with: "That's the quick sync. Anything specific, or are you good to walk in?"
+- If they're good: warm Hinglish sign-off + "I'll log this touchpoint"
+```
+
+### 3. DASHBOARD (React + Tailwind)
+
+#### 3.1 Design
+
+Clean, minimal, dark/light mode support. Looks like an internal bank tool, not a consumer app.
+
+**Layout:**
+```
+┌──────────────────────────────────────────────────────────┐
+│  SYNC  RM Briefing Co-Pilot           [● Live] [Latency]│
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐        │
+│  │  7     │  │ 18 min │  │  12    │  │  3     │        │
+│  │Syncs   │  │Avg Save│  │Cross-  │  │Compla- │        │
+│  │Today   │  │per Meet│  │sells   │  │ints    │        │
+│  │        │  │        │  │surfaced│  │flagged │        │
+│  └────────┘  └────────┘  └────────┘  └────────┘        │
+│                                                          │
+│  ┌─ SYNC A CLIENT ─────────────────────────────────────┐ │
+│  │ Select client: [  Search...  ▼]                     │ │
+│  │ Your phone:    [+91 98765 43210]                    │ │
+│  │                                     [📞 Sync Now]   │ │
+│  └─────────────────────────────────────────────────────┘ │
+│                                                          │
+│  ┌─ LIVE FEED ─────────────────────────────────────────┐ │
+│  │ 🟢 10:42 AM  RM: Deepak → Client: Rahul Mehta      │ │
+│  │   Flags: ⚠️ Complaint Open | Risk: Low              │ │
+│  │   Pitch: SIP for child education goal               │ │
+│  │   Duration: 38s | Status: ✓ Sync delivered          │ │
+│  │                                                     │ │
+│  │ 🟢 10:38 AM  RM: Anita → Client: Vikram Desai      │ │
+│  │   Flags: 🔴 Risk High | CC at 92%                   │ │
+│  │   Pitch: CC debt restructure to PL                  │ │
+│  │   Duration: 52s | Status: ✓ Sync delivered          │ │
+│  └─────────────────────────────────────────────────────┘ │
+│                                                          │
+│  ┌─ WITHOUT SYNC ───────┐  ┌─ WITH SYNC ──────────────┐ │
+│  │ Prep: 15-20 min      │  │ Prep: 30 seconds         │ │
+│  │ Complaints: Missed   │  │ Complaints: 100% flagged │ │
+│  │ Pitch: Generic       │  │ Pitch: Context-aware     │ │
+│  │ CRM log: Rarely      │  │ CRM log: Auto-logged     │ │
+│  └──────────────────────┘  └──────────────────────────┘ │
+└──────────────────────────────────────────────────────────┘
+```
+
+#### 3.2 Components
+
+**MetricCards.jsx**
+- 4 stat cards: Syncs Today, Avg Time Saved, Cross-sells Surfaced, Complaints Flagged
+- Initial values hardcoded but update in real-time via WebSocket
+- Subtle animation when a number increments
+
+**ClientSelector.jsx**
+- Dropdown with search (type-ahead) that queries `GET /api/v1/clients`
+- Shows client name, company, risk badge (colored dot)
+- On select, show a mini preview card: name, products, risk level
+
+**SyncNowButton.jsx**
+- Takes selected client_id and rm_phone
+- POSTs to `/api/v1/calls/sync-now`
+- Shows spinner → "Calling..." → "Connected" → "Sync delivered ✓"
+- Transitions based on WebSocket events
+
+**LiveFeed.jsx**
+- Reverse chronological list of BriefingLog events
+- Each card: timestamp, RM name, client name, risk badge, complaint badge, pitch summary, duration, status
+- New events slide in from top with subtle animation
+- Pre-seed with 3-4 fake historical events so the dashboard doesn't look empty on demo start
+
+**BeforeAfter.jsx**
+- Simple two-column comparison
+- Static content, no interactivity needed
+
+**LatencyBadge.jsx**
+- Shows "Pipeline: 340ms" or similar
+- Updates per call from webhook data
+- Green if <500ms, yellow if <800ms, red if >800ms
+
+#### 3.3 WebSocket Hook
+
+```javascript
+// useWebSocket.js
+// Connects to ws://{BACKEND_URL}/ws/dashboard
+// Dispatches events to update MetricCards and LiveFeed
+// Auto-reconnect on disconnect
+// Events: sync_completed, call_started, call_failed
+```
+
+### 4. SCRIPTS
+
+#### 4.1 `scripts/setup_ringg_agent.py`
+
+```python
+"""
+Run once to create the SYNC agent on Ringg AI.
+
+Usage: 
+  RINGG_API_KEY=xxx python scripts/setup_ringg_agent.py
+
+Steps:
+1. Get available voices (filter for en-IN)
+2. Create agent with config from ringg/agent-config.json
+3. Print agent_id to put in .env
+4. Subscribe to webhooks
+"""
+```
+
+#### 4.2 `scripts/upload_knowledge_base.py`
+
+```python
+"""
+Upload client data as a Ringg knowledge base for inbound calls.
+
+Usage:
+  RINGG_API_KEY=xxx python scripts/upload_knowledge_base.py
+
+Steps:
+1. Generate KB document from database.py client data
+2. Upload to Ringg via POST /kb
+3. Attach KB to the agent
+"""
+```
+
+#### 4.3 `scripts/test_call.py`
+
+```python
+"""
+Trigger a test briefing call.
+
+Usage:
+  RINGG_API_KEY=xxx python scripts/test_call.py --client "Rahul Mehta" --phone "+919876543210"
+
+Steps:
+1. Fetch client data from backend API
+2. Generate briefing via briefing_engine
+3. Trigger Ringg outbound call with custom_args_values
+4. Print call_id for monitoring
+"""
+```
+
+### 5. DOCKER & DEPLOYMENT
+
+#### 5.1 `docker-compose.yml`
+
+```yaml
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file: .env
+    
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_WS_URL=ws://localhost:8000
+```
+
+#### 5.2 Deployment targets
+
+- Backend: Railway or Render (free tier, auto-deploy from GitHub)
+- Dashboard: Vercel (free tier)
+- Both need HTTPS for Ringg webhooks
+
+### 6. `.env.example`
+
+```bash
+# Ringg AI
+RINGG_API_KEY=
+RINGG_BASE_URL=https://prod-api.ringg.ai/ca/api/v0
+RINGG_AGENT_ID=
+RINGG_FROM_NUMBER_ID=
+
+# OpenAI (for briefing generation in dashboard mode)
+OPENAI_API_KEY=
+
+# CRM Adapter: "mock" | "hubspot" | "salesforce" | "zoho"
+CRM_ADAPTER=mock
+
+# HubSpot (optional)
+HUBSPOT_API_KEY=
+
+# Salesforce (optional)
+SALESFORCE_INSTANCE_URL=
+SALESFORCE_ACCESS_TOKEN=
+
+# Backend
+BACKEND_URL=http://localhost:8000
+FRONTEND_URL=http://localhost:3000
+WEBHOOK_SECRET=your-webhook-secret
+
+# Demo
+DEMO_RM_PHONE=+919876543210
+DEMO_RM_NAME=Himanshu
+```
+
+### 7. README.md
+
+Write a clean README with:
+- Project tagline: "Before every client meeting, your RM knows everything. Not because they read a CRM — because they made a 30-second phone call to SYNC."
+- Architecture diagram (ASCII)
+- Quick start (docker-compose up, set env vars, run setup scripts)
+- CRM integration guide (how to switch from mock to HubSpot/Salesforce)
+- Demo instructions
+- Screenshots of dashboard (placeholder)
+- API documentation (brief)
+- Tech stack list
+
+---
+
+## IMPLEMENTATION PRIORITIES
+
+Build in this order:
+
+1. **Backend core** — models, database, client endpoints, health check
+2. **CRM adapter interface** — base class + mock implementation
+3. **Ringg service** — API client for agent creation, call initiation, webhooks
+4. **Briefing engine** — GPT-4o integration for briefing generation
+5. **Call trigger endpoint** — `/api/v1/calls/sync-now`
+6. **Webhook receiver** — `/api/v1/webhooks/ringg` + WebSocket broadcast
+7. **Dashboard** — metric cards, client selector, sync-now button, live feed
+8. **Scripts** — setup agent, upload KB, test call
+9. **HubSpot adapter** — full implementation
+10. **Salesforce adapter** — full implementation
+11. **Zoho adapter** — stub only
+12. **Docker + deployment configs**
+
+## CODE QUALITY REQUIREMENTS
+
+- Type hints on all Python functions
+- Pydantic models for all request/response schemas
+- Proper error handling with meaningful HTTP status codes
+- Logging with structlog
+- CORS configured for dashboard origin
+- Environment variables for all secrets (never hardcode)
+- Docstrings on all public functions
+- Clean separation of concerns (routers → services → adapters)
+
+## KEY TECHNICAL DECISIONS
+
+- Use `httpx.AsyncClient` (not requests) for all external API calls
+- Use `rapidfuzz` for fuzzy name matching (not difflib — it's faster)
+- Use `websockets` or FastAPI's built-in WebSocket for dashboard updates
+- Dashboard uses Vite + React + Tailwind (no Next.js, keep it simple)
+- All money amounts stored as integers (paise), displayed as rupees
+- Dates in ISO 8601, displayed in IST
+
+---
+
+Now build the entire project. Start with the backend, then the dashboard, then the Ringg config and scripts. Make it production-ready — this needs to win a hackathon.
