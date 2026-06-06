@@ -1,47 +1,16 @@
+/**
+ * Editorial KPI strip — like the stats sidebar of a newspaper feature.
+ * Big serif numbers, mono labels, ruled borders.
+ */
 import { BriefingStats } from "@workspace/api-client-react";
-import { GlowCard } from "./aceternity/glow-card";
-import { AnimatedCounter } from "./aceternity/animated-counter";
-import { PhoneCall, Clock, Sparkles, ShieldAlert } from "lucide-react";
 
 interface Props { stats?: BriefingStats; }
 
 const CARDS = [
-  {
-    label: "Syncs Today",
-    key: "syncs_today" as const,
-    icon: PhoneCall,
-    suffix: "",
-    color: "#6366f1",
-    glow: "rgba(99,102,241,0.3)",
-    bg: "from-indigo-500/10 to-transparent",
-  },
-  {
-    label: "Avg Time Saved",
-    key: "avg_time_saved_minutes" as const,
-    icon: Clock,
-    suffix: " min",
-    color: "#8b5cf6",
-    glow: "rgba(139,92,246,0.3)",
-    bg: "from-violet-500/10 to-transparent",
-  },
-  {
-    label: "Cross-sells Surfaced",
-    key: "cross_sells_surfaced" as const,
-    icon: Sparkles,
-    suffix: "",
-    color: "#06b6d4",
-    glow: "rgba(6,182,212,0.3)",
-    bg: "from-cyan-500/10 to-transparent",
-  },
-  {
-    label: "Complaints Flagged",
-    key: "complaints_flagged" as const,
-    icon: ShieldAlert,
-    suffix: "",
-    color: "#f97316",
-    glow: "rgba(249,115,22,0.3)",
-    bg: "from-orange-500/10 to-transparent",
-  },
+  { label: "Syncs Today", key: "syncs_today" as const, suffix: "" },
+  { label: "Avg Time Saved", key: "avg_time_saved_minutes" as const, suffix: " min" },
+  { label: "Cross-sells Surfaced", key: "cross_sells_surfaced" as const, suffix: "" },
+  { label: "Complaints Flagged", key: "complaints_flagged" as const, suffix: "" },
 ] as const;
 
 export function MetricCards({ stats }: Props) {
@@ -53,24 +22,38 @@ export function MetricCards({ stats }: Props) {
   };
 
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {CARDS.map(({ label, key, icon: Icon, suffix, color, glow, bg }) => (
-        <GlowCard key={key} glowColor={glow} intensity={0.12} className="p-5">
-          <div className={`absolute inset-0 rounded-xl bg-gradient-to-br ${bg} opacity-50`} />
-          <div className="relative">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{label}</span>
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg"
-                style={{ background: `${color}15`, border: `1px solid ${color}30` }}>
-                <Icon className="h-3.5 w-3.5" style={{ color }} />
-              </div>
-            </div>
-            <div className="text-3xl font-bold tracking-tight text-white">
-              <AnimatedCounter target={values[key]} suffix={suffix} />
+    <section className="border border-ink/15 bg-paper">
+      {/* Section caption */}
+      <div className="flex items-baseline justify-between border-b border-ink/15 bg-ink/[0.02] px-4 py-2.5">
+        <div className="flex items-baseline gap-2 font-edit-mono text-[10px] uppercase tracking-widest text-ink/60">
+          <span className="text-ink/40">§</span>
+          <span>01</span>
+          <span className="text-ink/30">·</span>
+          <span>Today's Ledger</span>
+        </div>
+        <span className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/40">
+          Refreshes every 10s
+        </span>
+      </div>
+
+      {/* Stats grid — 4 columns with vertical dividers */}
+      <div className="grid grid-cols-2 divide-x divide-ink/15 md:grid-cols-4">
+        {CARDS.map(({ label, key, suffix }) => (
+          <div key={key} className="px-5 py-5">
+            <p className="font-edit-mono text-[9px] uppercase tracking-widest text-ink/50">
+              {label}
+            </p>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="font-display text-5xl leading-none text-ink">
+                {values[key]}
+              </span>
+              {suffix && (
+                <span className="font-edit-mono text-xs text-ink/50">{suffix}</span>
+              )}
             </div>
           </div>
-        </GlowCard>
-      ))}
-    </div>
+        ))}
+      </div>
+    </section>
   );
 }

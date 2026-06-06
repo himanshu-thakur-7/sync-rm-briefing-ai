@@ -4,6 +4,83 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ─── Editorial design tokens (landing page) ────────────────────────── */
+@theme inline {
+  /* Warm parchment palette */
+  --color-paper: #F5F1EB;         /* cream — main bg */
+  --color-paper-2: #EDE6D9;       /* a touch warmer for alternating bands */
+  --color-cream: #F5F1EB;         /* alias for paper used on dark backgrounds */
+  --color-ink: #0B0B0A;           /* near-black for text */
+  --color-rule: rgba(11,11,10,0.15);
+  --color-accent-red: #C8392E;    /* editorial red for callouts */
+  --color-accent-blue: #1F4B99;   /* WSJ blue */
+  --color-accent-amber: #B58A2D;  /* annotation amber */
+
+  --font-serif: "Fraunces", "Source Serif Pro", Georgia, serif;
+  --font-display: "Instrument Serif", "Fraunces", Georgia, serif;
+  --font-editorial-mono: "IBM Plex Mono", "JetBrains Mono", monospace;
+}
+
+/* Content column width — magazine standard */
+@utility max-w-content { max-width: 56rem; }
+@utility max-w-narrow { max-width: 42rem; }
+
+/* Editorial typography helpers */
+.font-serif { font-family: var(--font-serif); }
+.font-display { font-family: var(--font-display); }
+.font-edit-mono { font-family: var(--font-editorial-mono); }
+.text-ink { color: var(--color-ink); }
+.text-ink\/90 { color: rgba(11,11,10,0.9); }
+.text-ink\/70 { color: rgba(11,11,10,0.7); }
+.text-ink\/60 { color: rgba(11,11,10,0.6); }
+.text-ink\/50 { color: rgba(11,11,10,0.5); }
+.text-ink\/40 { color: rgba(11,11,10,0.4); }
+.text-ink\/30 { color: rgba(11,11,10,0.3); }
+.bg-paper { background-color: var(--color-paper); }
+.bg-paper-2 { background-color: var(--color-paper-2); }
+.bg-ink { background-color: var(--color-ink); }
+.text-cream { color: var(--color-paper); }
+.text-cream\/80 { color: rgba(245,241,235,0.8); }
+.text-cream\/70 { color: rgba(245,241,235,0.7); }
+.text-cream\/60 { color: rgba(245,241,235,0.6); }
+.text-cream\/50 { color: rgba(245,241,235,0.5); }
+.text-cream\/40 { color: rgba(245,241,235,0.4); }
+.text-cream\/30 { color: rgba(245,241,235,0.3); }
+.bg-cream { background-color: var(--color-paper); }
+.border-cream { border-color: var(--color-paper); }
+.hover\:bg-cream:hover { background-color: var(--color-paper); }
+.hover\:text-cream:hover { color: var(--color-paper); }
+.hover\:border-cream:hover { border-color: var(--color-paper); }
+.hover\:bg-ink:hover { background-color: var(--color-ink); }
+.hover\:text-ink:hover { color: var(--color-ink); }
+.hover\:border-ink:hover { border-color: var(--color-ink); }
+.border-ink { border-color: var(--color-ink); }
+.border-ink\/15 { border-color: var(--color-rule); }
+.border-ink\/10 { border-color: rgba(11,11,10,0.1); }
+.border-ink\/30 { border-color: rgba(11,11,10,0.3); }
+
+/* Drop cap for opening paragraph */
+.drop-cap::first-letter {
+  font-family: var(--font-display);
+  float: left;
+  font-size: 5.5em;
+  line-height: 0.85;
+  padding-right: 0.08em;
+  padding-top: 0.05em;
+  font-weight: 400;
+  color: var(--color-ink);
+}
+
+/* Subtle paper grain — three layered noise patterns */
+.bg-paper-grain {
+  background-color: var(--color-paper);
+  background-image:
+    radial-gradient(rgba(11,11,10,0.04) 1px, transparent 1px),
+    radial-gradient(rgba(11,11,10,0.025) 1px, transparent 1px);
+  background-size: 24px 24px, 13px 13px;
+  background-position: 0 0, 7px 7px;
+}
+
 @theme inline {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));

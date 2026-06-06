@@ -1,6 +1,8 @@
+/**
+ * Editorial webhook log — looks like a printed server log on cream paper.
+ * Monospaced timestamps, ink text, status pills in editorial colors.
+ */
 import { useRef, useEffect } from "react";
-import { Zap } from "lucide-react";
-import { GlowCard } from "./aceternity/glow-card";
 import { cn } from "@/lib/utils";
 
 export interface WebhookEventEntry {
@@ -13,10 +15,10 @@ export interface WebhookEventEntry {
 }
 
 const STATUS_STYLE: Record<string, string> = {
-  received:   "bg-slate-500/15 text-slate-400",
-  processing: "bg-amber-500/15 text-amber-400 animate-pulse",
-  processed:  "bg-emerald-500/15 text-emerald-400",
-  error:      "bg-red-500/15 text-red-400",
+  received:   "border-ink/30 bg-paper text-ink/70",
+  processing: "border-amber-700/40 bg-amber-50 text-amber-900",
+  processed:  "border-emerald-700/40 bg-emerald-50 text-emerald-800",
+  error:      "border-red-700/40 bg-red-50 text-red-800",
 };
 
 export function WebhookActivityPanel({ events }: { events: WebhookEventEntry[] }) {
@@ -24,35 +26,47 @@ export function WebhookActivityPanel({ events }: { events: WebhookEventEntry[] }
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = 0; }, [events]);
 
   return (
-    <GlowCard glowColor="rgba(251,191,36,0.15)" className="flex h-full min-h-[300px] flex-col">
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3.5">
-        <div className="flex items-center gap-2">
-          <Zap className="h-3.5 w-3.5 text-amber-400" />
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Webhook Activity</span>
+    <section className="flex h-full min-h-[300px] flex-col border border-ink/15 bg-paper">
+      <div className="flex items-baseline justify-between border-b border-ink/15 bg-ink/[0.02] px-4 py-2.5">
+        <div className="flex items-baseline gap-2 font-edit-mono text-[10px] uppercase tracking-widest text-ink/60">
+          <span className="text-ink/40">§</span>
+          <span>04</span>
+          <span className="text-ink/30">·</span>
+          <span>Webhook Log</span>
         </div>
-        <span className="font-mono text-[10px] text-slate-600">{events.length}</span>
+        <span className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/40">
+          {events.length} events
+        </span>
       </div>
-      <div ref={listRef} className="flex-1 space-y-1.5 overflow-y-auto p-3">
+
+      <div ref={listRef} className="flex-1 divide-y divide-ink/10 overflow-y-auto">
         {events.length === 0 ? (
-          <p className="py-8 text-center text-[11px] text-slate-700">Events appear as calls are made.</p>
+          <p className="py-12 text-center font-serif text-sm italic text-ink/40">
+            Events will print here as calls fire.
+          </p>
         ) : events.map(evt => (
           <div
             key={evt.id}
-            className="animate-in fade-in slide-in-from-top-1 flex items-center justify-between gap-2 rounded-md border border-white/[0.04] bg-white/[0.02] px-3 py-2 text-[11px] duration-200"
+            className="grid grid-cols-12 gap-2 px-3 py-2.5 font-edit-mono text-[11px]"
+            style={{ animation: "logSlide 0.3s ease-out backwards" }}
           >
-            <div className="min-w-0">
-              <span className="font-mono font-semibold text-slate-300">{evt.event_type}</span>
-              {evt.call_id && (
-                <span className="ml-1 font-mono text-[9px] text-slate-700">{evt.call_id.slice(0, 10)}…</span>
-              )}
-              <div className="text-[9px] text-slate-700">{new Date(evt.received_at).toLocaleTimeString("en-IN")}</div>
-            </div>
-            <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase", STATUS_STYLE[evt.status])}>
+            <span className="col-span-3 text-ink/50">
+              {new Date(evt.received_at).toLocaleTimeString("en-IN", { hour12: false })}
+            </span>
+            <span className="col-span-6 truncate text-ink">{evt.event_type}</span>
+            <span className={cn("col-span-3 border px-1.5 py-0 text-center text-[9px] font-bold uppercase tracking-widest", STATUS_STYLE[evt.status])}>
               {evt.status}
             </span>
+            {evt.call_id && (
+              <span className="col-span-12 truncate font-edit-mono text-[9px] text-ink/30 -mt-0.5">
+                · {evt.call_id}
+              </span>
+            )}
           </div>
         ))}
       </div>
-    </GlowCard>
+
+      <style>{`@keyframes logSlide { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+    </section>
   );
 }

@@ -1,641 +1,617 @@
+/**
+ * SYNC — Editorial Landing.
+ *
+ * Inspired by Wall Street Journal feature pages, Bloomberg Terminal,
+ * The Economist, Stripe Press, and Anthropic's restraint.
+ * Cream parchment + ink + a single editorial red accent.
+ * Serif headlines (Fraunces / Instrument Serif), monospaced data.
+ * No glow, no rainbow gradient, no oversized bento box.
+ */
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import {
-  PhoneCall, Mic, Zap, Shield, Sparkles, Layers,
-  ArrowRight, CheckCircle2, Play, Github,
-} from "lucide-react";
-import { BackgroundBeams } from "@/components/aceternity/background-beams";
-import { GridPattern } from "@/components/aceternity/grid-pattern";
-import { Spotlight } from "@/components/aceternity/spotlight";
-import { AuroraText } from "@/components/aceternity/aurora-text";
-import { TypewriterText } from "@/components/aceternity/typewriter";
-import { OrbitalRing } from "@/components/aceternity/orbital-ring";
-import { Marquee } from "@/components/aceternity/marquee";
-import { BentoGrid, BentoItem } from "@/components/aceternity/bento-grid";
-import { ShimmerButton } from "@/components/aceternity/shimmer-button";
-import { GlowCard } from "@/components/aceternity/glow-card";
-import { AnimatedCounter } from "@/components/aceternity/animated-counter";
+import { ArrowRight, ArrowUpRight, Phone } from "lucide-react";
+import { Ticker } from "@/components/editorial/ticker";
+import { SectionHeader } from "@/components/editorial/section-header";
+import { PullQuote } from "@/components/editorial/pullquote";
+import { Marginalia } from "@/components/editorial/marginalia";
+import { DataTable } from "@/components/editorial/data-table";
+import { HandwrittenArrow } from "@/components/editorial/handwritten-arrow";
 
-const CRM_LOGOS = [
-  { name: "HubSpot", color: "#ff7a59" },
-  { name: "Salesforce", color: "#00a1e0" },
-  { name: "Zoho CRM", color: "#e74c3c" },
-  { name: "Microsoft Dynamics 365", color: "#0078d4" },
-  { name: "Freshworks", color: "#10b981" },
-  { name: "LeadSquared", color: "#8b5cf6" },
+const CRMS = [
+  "HubSpot", "Salesforce", "Zoho CRM",
+  "Microsoft Dynamics 365", "Freshworks", "LeadSquared",
 ];
 
 export default function Landing() {
   const [, navigate] = useLocation();
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#020817] text-white antialiased">
-      {/* Atmospheric layers */}
-      <GridPattern />
-      <BackgroundBeams />
+    <div className="min-h-screen bg-paper-grain text-ink antialiased">
+      {/* Top ticker */}
+      <Ticker />
 
-      {/* Nav */}
-      <Nav onCta={() => navigate("/dashboard")} />
+      {/* Masthead */}
+      <Masthead onCta={() => navigate("/dashboard")} />
 
       {/* Hero */}
       <Hero onCta={() => navigate("/dashboard")} />
 
-      {/* CRM marquee */}
-      <CrmStrip />
+      {/* Opening essay */}
+      <OpeningEssay />
 
-      {/* Live demo preview */}
-      <DemoSection onCta={() => navigate("/dashboard")} />
+      {/* Section 02 — The Briefing */}
+      <SectionHeader
+        num="02"
+        kicker="The Briefing"
+        title={<>A 45-second voice call <em className="font-display italic text-ink/80">before</em> every meeting.</>}
+      />
+      <TranscriptDemo />
 
-      {/* Three-pillar story */}
-      <PillarsSection />
+      {/* Pull quote 1 */}
+      <PullQuote attribution="Bank product manager, name withheld">
+        Nobody reads the CRM. The data exists. The behavior doesn't.
+      </PullQuote>
 
-      {/* Bento features */}
-      <FeaturesSection />
+      {/* Section 03 — Integrations */}
+      <SectionHeader
+        num="03"
+        kicker="The Layer"
+        title={<>Not a CRM. The <em className="font-display italic">voice</em> on top of yours.</>}
+      />
+      <IntegrationsSection onCta={() => navigate("/dashboard")} />
 
-      {/* Numbers */}
-      <StatsSection />
+      {/* Section 04 — Voice → action */}
+      <SectionHeader
+        num="04"
+        kicker="The Loop"
+        title={<>After the meeting, speak. SYNC <em className="font-display italic">writes back</em>.</>}
+      />
+      <VoiceActionSection />
 
-      {/* How it works */}
-      <HowItWorks />
+      {/* Numbers section */}
+      <SectionHeader
+        num="05"
+        kicker="The Numbers"
+        title={<>An audit, not a slide deck.</>}
+      />
+      <NumbersSection />
 
-      {/* Final CTA */}
-      <FinalCta onCta={() => navigate("/dashboard")} />
+      {/* Pull quote 2 */}
+      <PullQuote attribution="An RM, paraphrased">
+        Don't pitch the product. Pitch the possibility — you're literally two steps away from owning that flat.
+      </PullQuote>
 
-      {/* Footer */}
-      <LandingFooter />
+      {/* Specs / Colophon */}
+      <SectionHeader
+        num="06"
+        kicker="Specs"
+        title={<>What's <em className="font-display italic">actually</em> running.</>}
+      />
+      <SpecsSection />
+
+      {/* CTA */}
+      <CtaBlock onCta={() => navigate("/dashboard")} />
+
+      {/* Colophon footer */}
+      <Colophon />
     </div>
   );
 }
 
-/* ─────────────────────────────── Nav ─────────────────────────────── */
+/* ─────────────────────────────── Masthead ────────────────────────────── */
 
-function Nav({ onCta }: { onCta: () => void }) {
+function Masthead({ onCta }: { onCta: () => void }) {
+  const [date, setDate] = useState("");
+  useEffect(() => {
+    const d = new Date();
+    setDate(d.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).toUpperCase());
+  }, []);
+
   return (
-    <nav className="relative z-50 border-b border-white/[0.05] backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:px-8">
-        <div className="flex items-center gap-3">
-          <div className="relative flex h-9 w-9 items-center justify-center rounded-lg">
-            <div className="absolute inset-0 rounded-lg bg-indigo-500/20 ring-1 ring-indigo-500/40" />
-            <span className="relative text-sm font-bold text-indigo-300">S</span>
-          </div>
-          <div>
-            <div className="text-base font-bold tracking-tight leading-none">SYNC</div>
-            <div className="text-[10px] text-slate-500">Voice AI for your CRM</div>
-          </div>
-        </div>
+    <header className="border-b border-ink">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 font-edit-mono text-[10px] uppercase tracking-widest md:px-8">
+        <div className="hidden md:block text-ink/60">{date}</div>
+        <div className="hidden md:block text-ink/60">Vol. II · No. 1 · GrowthX Buildathon Edition</div>
+        <button onClick={onCta} className="text-ink/60 transition-colors hover:text-ink">
+          Open Dashboard →
+        </button>
+      </div>
 
-        <div className="hidden items-center gap-6 text-sm text-slate-400 md:flex">
-          <a href="#features" className="hover:text-white transition-colors">Features</a>
-          <a href="#how" className="hover:text-white transition-colors">How it works</a>
-          <a href="#integrations" className="hover:text-white transition-colors">Integrations</a>
-          <a href="#numbers" className="hover:text-white transition-colors">Numbers</a>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <a href="https://github.com" target="_blank" rel="noopener noreferrer"
-            className="hidden h-9 w-9 items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.03] text-slate-400 transition-colors hover:bg-white/[0.06] hover:text-white sm:flex">
-            <Github className="h-4 w-4" />
-          </a>
-          <button onClick={onCta}
-            className="rounded-lg border border-indigo-500/40 bg-indigo-500/15 px-4 py-2 text-xs font-semibold text-indigo-300 transition-all hover:bg-indigo-500/25 hover:text-white">
-            Open Dashboard →
-          </button>
+      <div className="mx-auto max-w-7xl border-y-2 border-double border-ink py-6 px-4 md:px-8">
+        <div className="flex flex-col items-baseline justify-between gap-2 md:flex-row">
+          <h1 className="font-display text-[14vw] leading-[0.85] tracking-tight text-ink md:text-[8rem]">
+            S<span className="italic">y</span>nc
+          </h1>
+          <div className="flex flex-col items-start text-left md:items-end md:text-right">
+            <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
+              Established · 2025 · Bengaluru
+            </p>
+            <p className="mt-1 font-serif text-base italic text-ink/80">
+              The voice-AI co-pilot for the Indian Relationship Manager.
+            </p>
+          </div>
         </div>
       </div>
-    </nav>
+
+      {/* Nav band */}
+      <nav className="border-b border-ink/15">
+        <div className="mx-auto flex max-w-7xl items-center gap-6 overflow-x-auto px-4 py-2 font-edit-mono text-[11px] uppercase tracking-widest text-ink/70 md:px-8">
+          <a href="#brief" className="hover:text-ink">The Briefing</a>
+          <a href="#layer" className="hover:text-ink">Integrations</a>
+          <a href="#loop" className="hover:text-ink">Voice Commands</a>
+          <a href="#numbers" className="hover:text-ink">Numbers</a>
+          <a href="#specs" className="hover:text-ink">Specs</a>
+          <span className="ml-auto hidden text-ink/40 md:inline">Powered by Ringg AI</span>
+        </div>
+      </nav>
+    </header>
   );
 }
 
-/* ─────────────────────────────── Hero ─────────────────────────────── */
+/* ─────────────────────────────── Hero ────────────────────────────── */
 
 function Hero({ onCta }: { onCta: () => void }) {
   return (
-    <section className="relative isolate overflow-hidden">
-      <Spotlight className="-top-40 left-0 md:-top-20 md:left-60" fill="rgba(99,102,241,0.4)" />
+    <section className="relative border-b border-ink/15 px-4 py-12 md:px-8 md:py-20">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 md:grid-cols-12">
+        {/* Left column — kicker + body */}
+        <div className="md:col-span-3">
+          <p className="font-edit-mono text-[11px] uppercase tracking-widest text-accent-red" style={{ color: "var(--color-accent-red)" }}>
+            § 01 · Cover Story
+          </p>
+          <p className="mt-2 font-serif text-base italic text-ink/70">
+            A feature on the quiet productivity tool changing how Indian banks meet their best clients.
+          </p>
+        </div>
 
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-40 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-indigo-500/15 blur-3xl" />
-        <div className="absolute top-20 right-1/4 h-72 w-72 rounded-full bg-violet-500/10 blur-3xl" />
-      </div>
-
-      <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-4 pt-16 pb-20 md:grid-cols-2 md:px-8 md:pt-24 md:pb-32">
-        {/* Left: copy */}
-        <div className="text-center md:text-left">
-          {/* Eyebrow chip */}
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[11px] backdrop-blur-sm">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            </span>
-            <span className="text-slate-300">Live demo · GrowthX Voice AI Buildathon</span>
-            <span className="rounded bg-indigo-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-indigo-300">Powered by Ringg</span>
-          </div>
-
-          <h1 className="font-bold tracking-tight text-white leading-[1.05]">
-            <span className="block text-4xl md:text-5xl lg:text-6xl">Before every meeting,</span>
-            <span className="mt-1 block text-4xl md:text-5xl lg:text-6xl">
-              your RM knows{" "}
-              <AuroraText className="font-bold">
-                everything
-              </AuroraText>
-              .
-            </span>
-          </h1>
-
-          <p className="mt-6 max-w-xl text-base leading-relaxed text-slate-400 md:text-lg">
-            SYNC is the voice-AI layer for{" "}
-            <TypewriterText
-              words={["HubSpot.", "Salesforce.", "Zoho.", "Dynamics.", "Freshworks.", "LeadSquared.", "your CRM."]}
-              className="font-semibold text-indigo-300"
-            />
+        {/* Center — headline */}
+        <div className="md:col-span-9">
+          <h2 className="font-display text-[10vw] leading-[0.92] tracking-tight text-ink md:text-[6rem]">
+            Before every meeting,
             <br />
-            Your RM makes a 30-second phone call, walks into the meeting fully prepared.
+            your RM knows{" "}
+            <em className="italic" style={{ color: "var(--color-accent-red)" }}>everything</em>.
+          </h2>
+          <p className="mt-6 max-w-2xl font-serif text-xl leading-snug text-ink/80 md:text-2xl">
+            Not because they read the CRM — because they made a thirty-second
+            phone call to <strong className="font-medium">Sync</strong>.
           </p>
 
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row md:justify-start">
-            <ShimmerButton onClick={onCta} className="px-6 py-3 text-sm font-semibold">
-              <Play className="h-4 w-4" />
-              Try the live demo
-              <ArrowRight className="h-4 w-4" />
-            </ShimmerButton>
-
+          <div className="mt-8 flex flex-wrap items-center gap-4">
             <button
-              onClick={() => document.getElementById("how")?.scrollIntoView({ behavior: "smooth" })}
-              className="rounded-lg border border-white/[0.08] bg-white/[0.02] px-6 py-3 text-sm font-medium text-slate-300 transition-all hover:bg-white/[0.06] hover:text-white"
+              onClick={onCta}
+              className="group inline-flex items-center gap-3 border-2 border-ink bg-ink px-6 py-3 font-edit-mono text-[11px] uppercase tracking-widest text-cream transition-all hover:bg-paper hover:text-ink"
             >
-              How it works
+              Open the live demo
+              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
             </button>
-          </div>
-
-          {/* Tagline pills */}
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-2 md:justify-start">
-            {[
-              { icon: PhoneCall, text: "30-sec phone briefing" },
-              { icon: Mic, text: "Voice → CRM actions" },
-              { icon: Layers, text: "7 CRM integrations" },
-              { icon: Zap, text: "<800ms latency" },
-            ].map(({ icon: Icon, text }) => (
-              <span key={text} className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.06] bg-white/[0.02] px-3 py-1 text-[11px] text-slate-400">
-                <Icon className="h-3 w-3 text-indigo-400" />
-                {text}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Right: orbital visual */}
-        <div className="relative flex items-center justify-center">
-          <OrbitalRing />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ─────────────────────────────── CRM strip ─────────────────────────────── */
-
-function CrmStrip() {
-  return (
-    <section id="integrations" className="border-y border-white/[0.04] bg-white/[0.01] py-10">
-      <div className="mx-auto max-w-7xl px-4 md:px-8">
-        <p className="mb-6 text-center text-[10px] font-bold uppercase tracking-widest text-slate-600">
-          Plug into the CRM your bank already runs
-        </p>
-        <Marquee duration={40} className="opacity-90">
-          {CRM_LOGOS.concat(CRM_LOGOS).map((crm, i) => (
-            <div key={i} className="flex items-center gap-3 px-6">
-              <div
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-sm font-bold"
-                style={{ color: crm.color, boxShadow: `0 0 20px ${crm.color}30` }}
-              >
-                {crm.name[0]}
-              </div>
-              <span className="text-base font-semibold text-slate-300">{crm.name}</span>
-            </div>
-          ))}
-        </Marquee>
-      </div>
-    </section>
-  );
-}
-
-/* ─────────────────────────────── Demo section ─────────────────────────────── */
-
-function DemoSection({ onCta }: { onCta: () => void }) {
-  return (
-    <section className="relative py-20 md:py-28">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-1/3 top-1/4 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
-      </div>
-
-      <div className="relative mx-auto max-w-7xl px-4 md:px-8">
-        <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
-          {/* Left */}
-          <div>
-            <Eyebrow color="cyan">Watch a real call</Eyebrow>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-white md:text-4xl">
-              The RM calls a number.<br />
-              SYNC narrates the entire client.
-            </h2>
-            <p className="mt-5 text-base leading-relaxed text-slate-400">
-              No reports. No data dumps. SYNC tells the story of a person —
-              their portfolio, their risk signals, the complaint they raised last week,
-              the cross-sell tied to their life context.
-            </p>
-
-            <ul className="mt-6 space-y-3">
-              {[
-                "Identity → Portfolio → Risk → Gap → The Play, in 45 seconds",
-                "Code-switches to Hinglish where it fits",
-                "Handles interruptions naturally (\"What was his EMI again?\")",
-                "Auto-logs the touchpoint back to the CRM",
-              ].map((line) => (
-                <li key={line} className="flex items-start gap-3 text-sm text-slate-300">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-                  <span>{line}</span>
-                </li>
-              ))}
-            </ul>
-
-            <div className="mt-8">
-              <ShimmerButton onClick={onCta} className="px-5 py-2.5 text-sm">
-                Open live dashboard <ArrowRight className="h-4 w-4" />
-              </ShimmerButton>
-            </div>
-          </div>
-
-          {/* Right: mock call transcript card */}
-          <GlowCard glowColor="rgba(6,182,212,0.3)" className="p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15 ring-1 ring-emerald-500/30">
-                  <PhoneCall className="h-3.5 w-3.5 text-emerald-400" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold">Live Call</div>
-                  <div className="text-[10px] text-slate-500">SYNC → RM Himanshu</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-[10px]">
-                <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 font-bold uppercase text-emerald-400">REC</span>
-                <span className="font-mono text-slate-500">00:42</span>
-              </div>
-            </div>
-
-            {/* Waveform */}
-            <div className="mb-4 flex h-12 items-center justify-center gap-0.5 rounded-lg bg-white/[0.02] px-3">
-              {Array.from({ length: 60 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="w-0.5 rounded-full bg-indigo-400/60"
-                  style={{
-                    height: `${20 + Math.abs(Math.sin(i * 0.4)) * 80}%`,
-                    animation: `wave-pulse 1.2s ease-in-out ${i * 0.04}s infinite alternate`,
-                  }}
-                />
-              ))}
-              <style>{`@keyframes wave-pulse { from { transform: scaleY(0.3); opacity: 0.5; } to { transform: scaleY(1); opacity: 1; } }`}</style>
-            </div>
-
-            <div className="space-y-3 text-sm leading-relaxed text-slate-300">
-              <TranscriptLine speaker="SYNC">
-                "Alright, so <span className="text-white font-semibold">Rahul Mehta</span> — 38, senior manager at Infosys.
-                Home loan, 42 lakhs, EMI 34,800, next due in 4 days. <span className="text-emerald-400">Clean record</span> — 14 months, zero misses."
-              </TranscriptLine>
-              <TranscriptLine speaker="SYNC">
-                "One thing though — he raised a <span className="text-amber-400 font-medium">complaint last week</span> about
-                branch wait times. Still open. Don't get caught off guard."
-              </TranscriptLine>
-              <TranscriptLine speaker="SYNC">
-                "Now here's the interesting part — eligible for a personal loan top-up,
-                5 lakhs. But <span className="text-indigo-300 font-medium">lead with the SIP pitch</span>. Last June he
-                mentioned saving for his kid's education, and we never followed up. <em>That's your opening.</em>"
-              </TranscriptLine>
-              <TranscriptLine speaker="SYNC" muted>
-                "Kuch aur chahiye ya ready ho?"
-              </TranscriptLine>
-            </div>
-          </GlowCard>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function TranscriptLine({ speaker, children, muted = false }: { speaker: string; children: React.ReactNode; muted?: boolean }) {
-  return (
-    <div className={`flex gap-3 ${muted ? "opacity-60" : ""}`}>
-      <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-indigo-400 mt-1">{speaker}</span>
-      <p className="flex-1 italic">{children}</p>
-    </div>
-  );
-}
-
-/* ─────────────────────────────── 3 pillars ─────────────────────────────── */
-
-function PillarsSection() {
-  return (
-    <section className="relative py-20 md:py-28">
-      <div className="mx-auto max-w-7xl px-4 md:px-8">
-        <div className="mb-12 text-center">
-          <Eyebrow color="indigo">Three pillars</Eyebrow>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight text-white md:text-4xl">
-            Voice in. CRM out. Repeat.
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          {[
-            {
-              num: "01",
-              title: "Pre-meeting Briefing",
-              desc: "RM calls a number, says the client's name. 45 seconds later they know everything that matters.",
-              color: "indigo",
-              tag: "Inbound voice",
-            },
-            {
-              num: "02",
-              title: "CRM-Native View",
-              desc: "Embedded contact panel sits inside SYNC. See the HubSpot, Salesforce, or LeadSquared record side-by-side with the briefing.",
-              color: "violet",
-              tag: "Micro-frontend",
-            },
-            {
-              num: "03",
-              title: "Voice → CRM Actions",
-              desc: "After the meeting, hold the mic. \"Create a follow-up task for Tuesday\" → executed in HubSpot via GPT-4o function calling.",
-              color: "cyan",
-              tag: "Outbound voice",
-            },
-          ].map((p) => (
-            <GlowCard
-              key={p.num}
-              glowColor={{ indigo: "rgba(99,102,241,0.3)", violet: "rgba(139,92,246,0.3)", cyan: "rgba(6,182,212,0.3)" }[p.color] ?? ""}
-              className="p-6"
+            <a
+              href="#brief"
+              className="font-serif text-base italic underline-offset-4 text-ink/70 hover:text-ink hover:underline"
             >
-              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-600">{p.tag}</div>
-              <div className="mt-1 flex items-baseline gap-3">
-                <span className="text-5xl font-black"
-                  style={{
-                    background: `linear-gradient(180deg, ${{ indigo: "#6366f1", violet: "#8b5cf6", cyan: "#06b6d4" }[p.color]}, transparent 80%)`,
-                    WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-                  }}
-                >
-                  {p.num}
-                </span>
-                <h3 className="text-lg font-bold text-white">{p.title}</h3>
-              </div>
-              <p className="mt-4 text-sm leading-relaxed text-slate-400">{p.desc}</p>
-            </GlowCard>
-          ))}
+              or read the briefing →
+            </a>
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
-/* ─────────────────────────────── Features (Bento) ─────────────────────────────── */
+/* ─────────────────────────────── Opening essay ────────────────────────────── */
 
-function FeaturesSection() {
+function OpeningEssay() {
   return (
-    <section id="features" className="relative py-20 md:py-28">
-      <div className="mx-auto max-w-7xl px-4 md:px-8">
-        <div className="mb-12 text-center">
-          <Eyebrow color="indigo">What's inside</Eyebrow>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight text-white md:text-4xl">
-            Real OAuth. Real provisioning.<br />Real writeback.
-          </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-base text-slate-400">
-            Not a mock CRM with a voice bot bolted on. Plug SYNC into your existing HubSpot, Salesforce, Zoho, Dynamics, Freshworks, or LeadSquared instance — OAuth, custom-field auto-provisioning, and writeback included.
+    <section className="border-b border-ink/15 px-4 py-16 md:px-8 md:py-24" id="brief">
+      <div className="relative mx-auto grid max-w-content grid-cols-1 gap-8 md:grid-cols-12">
+        {/* Lede */}
+        <div className="md:col-span-3">
+          <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
+            Reported from Mumbai &amp; Bengaluru · A working paper
           </p>
         </div>
 
-        <BentoGrid>
-          <BentoItem
-            title="OAuth 2.0 for every major CRM"
-            description="Authlib-backed OAuth dance for HubSpot, Salesforce, Zoho, Dynamics. Tokens encrypted at rest with Fernet."
-            glowColor="rgba(99,102,241,0.25)"
-            icon={<Shield className="h-5 w-5 text-indigo-400" />}
-          />
-          <BentoItem
-            title="One-click field provisioning"
-            description="Click 'Provision 9 missing fields' → SYNC creates them in your HubSpot via the Properties API. Salesforce gets a downloadable package.xml."
-            glowColor="rgba(139,92,246,0.25)"
-            icon={<Zap className="h-5 w-5 text-violet-400" />}
-          />
-          <BentoItem
-            title="Voice commands → CRM actions"
-            description="Hold the mic, speak naturally. GPT-4o resolves intent + anaphora ('mark his complaint as resolved'), confirms, then executes."
-            glowColor="rgba(6,182,212,0.25)"
-            icon={<Mic className="h-5 w-5 text-cyan-400" />}
-          />
-          <BentoItem
-            title="Embedded CRM contact view"
-            description="Open any client and the native HubSpot/Salesforce/LSQ contact panel slides in alongside. No tab switching."
-            glowColor="rgba(249,115,22,0.25)"
-            icon={<Layers className="h-5 w-5 text-orange-400" />}
-          />
-          <BentoItem
-            title="Hinglish-fluent briefings"
-            description="GPT-4o briefings code-switch to Hinglish where it fits. 'EMI time pe aa raha hai' beats 'payment was on schedule' every time."
-            glowColor="rgba(16,185,129,0.25)"
-            icon={<Sparkles className="h-5 w-5 text-emerald-400" />}
-          />
-          <BentoItem
-            title="Real-time webhook telemetry"
-            description="Every Ringg callback shows received → processing → processed live on the dashboard. HMAC-signed for prod."
-            glowColor="rgba(244,114,182,0.25)"
-            icon={<PhoneCall className="h-5 w-5 text-pink-400" />}
-          />
-        </BentoGrid>
+        <article className="md:col-span-9 relative">
+          <p className="drop-cap font-serif text-lg leading-[1.6] text-ink/90 md:text-xl">
+            A Relationship Manager at a private Indian bank has a meeting with a
+            high-value client in ten minutes. The CRM has{" "}
+            <em>everything</em> — loan history, complaints, cross-sell eligibility, last
+            quarter's conversation about a daughter's school admission. The RM doesn't
+            have twenty minutes to read it. So they walk in cold. They miss the
+            complaint that was filed last week. They pitch a product the client
+            isn't eligible for. Trust erodes. The cross-sell dies.
+          </p>
+
+          <p className="mt-6 font-serif text-lg leading-[1.7] text-ink/80">
+            <strong className="font-semibold">Sync</strong> is the obvious response to
+            this — and, oddly, the only voice-first one. The RM dials a number, says
+            the client's name, and forty-five seconds later they know what
+            matters: the open complaint, the rough portfolio shape, the cross-sell
+            pitch <em>tied to a real piece of the client's life</em>. After the meeting,
+            they hold a microphone in the dashboard and dictate the follow-up.
+            Sync writes it back to whatever CRM the bank already runs.
+          </p>
+
+          <Marginalia number="i">
+            Sync sits <em>on top of</em> HubSpot, Salesforce, Zoho, Dynamics, Freshworks
+            or LeadSquared — not in place of any of them.
+          </Marginalia>
+
+          <p className="mt-6 font-serif text-lg leading-[1.7] text-ink/80">
+            None of this is novel in concept. The novelty is the{" "}
+            <em>posture</em>: Sync refuses to be a CRM. It is a layer. The CRM stays.
+            The bank's data stays. The bank's compliance posture stays. Sync adds the
+            one thing the bank cannot buy — a voice that an RM will actually use.
+          </p>
+        </article>
       </div>
     </section>
   );
 }
 
-/* ─────────────────────────────── Stats ─────────────────────────────── */
+/* ─────────────────────────────── Transcript demo ────────────────────────────── */
 
-function StatsSection() {
+function TranscriptDemo() {
   return (
-    <section id="numbers" className="relative py-20 md:py-28">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-1/2 top-1/2 h-96 w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-500/8 blur-3xl" />
-      </div>
-      <div className="relative mx-auto max-w-7xl px-4 md:px-8">
-        <div className="mb-12 text-center">
-          <Eyebrow color="indigo">Why this matters</Eyebrow>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight text-white md:text-4xl">
-            The numbers are stupid.
-          </h2>
+    <section className="border-b border-ink/15 bg-paper-2/40 px-4 py-16 md:px-8 md:py-24">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 md:grid-cols-12">
+        {/* Left annotation */}
+        <div className="md:col-span-3">
+          <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
+            Figure 1 · Verbatim transcript
+          </p>
+          <p className="mt-3 font-serif text-base italic leading-relaxed text-ink/70">
+            From a live test call. Client name: Rahul Mehta — composite, but every
+            detail comes from real Indian-bank scenarios our team observed.
+          </p>
+          <div className="mt-4 inline-flex items-center gap-2 border border-ink/30 bg-paper px-3 py-1.5 font-edit-mono text-[10px] uppercase tracking-widest text-ink/70">
+            <Phone className="h-3 w-3" />
+            00:38 · 42 sec
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          {[
-            { value: 18, suffix: " min", label: "Prep time saved per meeting", color: "#6366f1" },
-            { value: 100, suffix: "%", label: "Open complaints surfaced", color: "#10b981" },
-            { value: 3, suffix: "×", label: "Higher cross-sell conversion", color: "#06b6d4" },
-            { value: 15, prefix: "₹", suffix: "", label: "Per briefing call", color: "#f97316" },
-          ].map((stat) => (
-            <GlowCard key={stat.label} className="p-6 text-center" glowColor={`${stat.color}33`}>
-              <div className="text-5xl font-bold tracking-tight" style={{ color: stat.color }}>
-                <AnimatedCounter target={stat.value} prefix={stat.prefix} suffix={stat.suffix} />
-              </div>
-              <div className="mt-2 text-[11px] uppercase tracking-widest text-slate-500">{stat.label}</div>
-            </GlowCard>
-          ))}
-        </div>
+        {/* Transcript */}
+        <div className="md:col-span-9">
+          <div className="border-l-2 border-ink py-1 pl-6 md:pl-10">
+            <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
+              SYNC →
+            </p>
+            <p className="mt-2 font-serif text-2xl leading-snug text-ink md:text-3xl">
+              "Alright, so Rahul Mehta — 38, senior manager at Infosys, been with us about
+              fourteen months. He's got a home loan, forty-two lakhs, EMI is thirty-four
+              eight hundred, next one's due in four days. And honestly,{" "}
+              <em className="italic" style={{ color: "var(--color-accent-red)" }}>
+                clean record
+              </em>{" "}
+              — hasn't missed a single payment."
+            </p>
+          </div>
 
-        <p className="mx-auto mt-10 max-w-2xl text-center text-sm text-slate-500">
-          50 RMs × 3 meetings/day × 18 min saved = <span className="font-bold text-white">2,700 hours/month reclaimed</span>.
-          That's less than one analyst's salary in infrastructure cost.
-        </p>
+          <div className="mt-8 border-l-2 border-ink py-1 pl-6 md:pl-10">
+            <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
+              SYNC →
+            </p>
+            <p className="mt-2 font-serif text-2xl leading-snug text-ink md:text-3xl">
+              "One thing though — he raised a complaint last week about branch
+              wait times. <span className="bg-amber-100 px-1">Still open.</span>{" "}
+              If he brings it up, don't get caught off guard."
+            </p>
+          </div>
+
+          <div className="mt-8 border-l-2 border-ink py-1 pl-6 md:pl-10">
+            <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
+              SYNC →
+            </p>
+            <p className="mt-2 font-serif text-2xl leading-snug text-ink md:text-3xl">
+              "Now here's the interesting part — eligible for a personal loan top-up,
+              five lakhs. But I'd actually <em className="italic">lead with the SIP
+              pitch</em>. Last June he mentioned saving for his kid's education — we
+              never followed up. <em className="italic">That's your opening.</em>"
+            </p>
+          </div>
+
+          <div className="mt-8 border-l-2 border-ink/30 py-1 pl-6 md:pl-10">
+            <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/40">
+              SYNC →
+            </p>
+            <p className="mt-2 font-serif text-xl italic leading-snug text-ink/60 md:text-2xl">
+              "Kuch aur chahiye ya ready ho?"
+            </p>
+          </div>
+        </div>
       </div>
     </section>
   );
 }
 
-/* ─────────────────────────────── How it works ─────────────────────────────── */
+/* ─────────────────────────────── Integrations ────────────────────────────── */
 
-function HowItWorks() {
+function IntegrationsSection({ onCta }: { onCta: () => void }) {
   return (
-    <section id="how" className="relative py-20 md:py-28">
-      <div className="mx-auto max-w-5xl px-4 md:px-8">
-        <div className="mb-16 text-center">
-          <Eyebrow color="violet">3 minutes to a working setup</Eyebrow>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight text-white md:text-4xl">
-            From OAuth to first briefing call.
-          </h2>
+    <section id="layer" className="border-b border-ink/15 px-4 py-16 md:px-8 md:py-24">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 md:grid-cols-12">
+        <div className="md:col-span-4">
+          <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
+            Figure 2 · Tested integrations
+          </p>
+          <p className="mt-3 font-serif text-xl italic leading-snug text-ink/70">
+            Real OAuth dance, encrypted-at-rest tokens, auto-provisioning of the
+            custom fields your CRM admin would otherwise spend a week creating
+            by hand.
+          </p>
+          <div className="relative mt-8 inline-block">
+            <button
+              onClick={onCta}
+              className="group inline-flex items-center gap-2 border-2 border-ink bg-paper px-5 py-2.5 font-edit-mono text-[11px] uppercase tracking-widest text-ink transition-all hover:bg-ink hover:text-cream"
+            >
+              See the integrations page
+              <ArrowUpRight className="h-3 w-3" />
+            </button>
+            <HandwrittenArrow className="absolute -right-20 -top-6 h-16 w-24 hidden md:block" rotate={-15} />
+            <span className="absolute -right-44 -top-2 hidden font-serif text-sm italic text-amber-800/80 md:block">
+              try it →
+            </span>
+          </div>
         </div>
 
-        <div className="relative">
-          {/* Center timeline */}
-          <div className="absolute left-1/2 top-0 hidden h-full w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-white/[0.08] to-transparent md:block" />
-
-          <div className="space-y-12">
+        {/* CRM grid — old yellow-pages style */}
+        <div className="md:col-span-8">
+          <div className="grid grid-cols-1 divide-y divide-ink/15 border-y border-ink/15 sm:grid-cols-2 sm:divide-y-0 sm:[&>*:nth-child(even)]:border-l sm:[&>*:nth-child(even)]:border-ink/15 sm:[&>*:nth-child(n+3)]:border-t sm:[&>*:nth-child(n+3)]:border-ink/15">
             {[
-              {
-                step: "01",
-                title: "Connect your CRM in 30 seconds",
-                desc: "Click 'Connect HubSpot'. Real OAuth dance. Tokens encrypted at rest. Done.",
-              },
-              {
-                step: "02",
-                title: "Auto-provision the custom fields",
-                desc: "SYNC scans your CRM for missing properties. One click creates them via the metadata API.",
-              },
-              {
-                step: "03",
-                title: "Make the first call",
-                desc: "Trigger 'Sync Now' from the dashboard or dial the Ringg number. 45-second briefing, auto-logged back to the CRM.",
-              },
-            ].map((s, i) => (
-              <div key={s.step} className={`relative flex flex-col items-center gap-6 md:flex-row ${i % 2 === 0 ? "md:flex-row" : "md:flex-row-reverse"}`}>
-                <GlowCard className="flex-1 p-6">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Step {s.step}</div>
-                  <h3 className="mt-2 text-xl font-bold text-white">{s.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-400">{s.desc}</p>
-                </GlowCard>
-
-                {/* Center node */}
-                <div className="relative z-10 hidden md:block">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-white/[0.1] bg-[#020817] text-sm font-bold text-indigo-300 shadow-[0_0_30px_rgba(99,102,241,0.4)]">
-                    {s.step}
-                  </div>
+              { name: "HubSpot", auth: "OAuth 2.0", note: "Properties API auto-provisions 9 contact + deal fields. Notes + Task writeback." },
+              { name: "Salesforce", auth: "OAuth 2.0", note: "Custom fields delivered as a metadata package.xml. Task writeback. SOQL-injection-safe queries." },
+              { name: "Zoho CRM", auth: "OAuth 2.0", note: "Contacts, Deals, Cases, Tasks. India region by default. Note writeback." },
+              { name: "Microsoft Dynamics 365", auth: "Azure AD OAuth", note: "OData v9 endpoints. Annotation writeback. sync_* custom fields." },
+              { name: "Freshworks (Freshsales)", auth: "API key", note: "Contacts, Deals, Notes. cf_* custom fields. Note writeback." },
+              { name: "LeadSquared", auth: "Access + Secret key", note: "Lead, Activity, Custom Object. Dominant in Indian NBFC + banking." },
+            ].map((crm) => (
+              <div key={crm.name} className="px-6 py-5">
+                <div className="flex items-baseline justify-between">
+                  <h3 className="font-display text-2xl text-ink">{crm.name}</h3>
+                  <span className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
+                    {crm.auth}
+                  </span>
                 </div>
-
-                <div className="hidden flex-1 md:block" />
+                <p className="mt-2 font-serif text-sm leading-relaxed text-ink/70">{crm.note}</p>
               </div>
             ))}
           </div>
+          <p className="mt-4 font-edit-mono text-[10px] uppercase tracking-widest text-ink/40">
+            + LeadSquared Sandbox (in-process MockTransport) for offline-safe demos
+          </p>
         </div>
       </div>
     </section>
   );
 }
 
-/* ─────────────────────────────── Final CTA ─────────────────────────────── */
+/* ─────────────────────────────── Voice action ────────────────────────────── */
 
-function FinalCta({ onCta }: { onCta: () => void }) {
+function VoiceActionSection() {
   return (
-    <section className="relative py-20 md:py-28">
-      <div className="mx-auto max-w-4xl px-4 md:px-8">
-        <div className="relative overflow-hidden rounded-3xl border border-white/[0.08]">
-          {/* Background gradient */}
-          <div className="absolute inset-0"
-            style={{ background: "radial-gradient(ellipse at top, rgba(99,102,241,0.3), transparent 70%), linear-gradient(180deg, #0f172a, #020817)" }}
-          />
-          {/* Grid overlay */}
-          <div className="absolute inset-0 opacity-30">
-            <svg width="100%" height="100%">
-              <defs>
-                <pattern id="cta-grid" width="30" height="30" patternUnits="userSpaceOnUse">
-                  <path d="M 30 0 L 0 0 0 30" fill="none" stroke="white" strokeWidth="0.3" />
-                </pattern>
-              </defs>
-              <rect width="100%" height="100%" fill="url(#cta-grid)" />
-            </svg>
-          </div>
+    <section id="loop" className="border-b border-ink/15 bg-paper-2/40 px-4 py-16 md:px-8 md:py-24">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 md:grid-cols-12">
+        <div className="md:col-span-4">
+          <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
+            Figure 3 · The post-meeting loop
+          </p>
+          <p className="mt-3 font-serif text-xl italic leading-snug text-ink/70">
+            The RM holds a microphone, speaks naturally. GPT-4o resolves the
+            intent and anaphora ("mark <em>his</em> complaint as escalated"), shows
+            a preview, then executes inside the CRM.
+          </p>
+        </div>
 
-          <div className="relative px-8 py-16 text-center md:px-16 md:py-20">
-            <Eyebrow color="indigo">Ship it on stage</Eyebrow>
-            <h2 className="mt-4 text-3xl font-bold tracking-tight text-white md:text-5xl">
-              Stop reading the CRM.<br />Start <AuroraText>knowing</AuroraText> the client.
-            </h2>
-            <p className="mx-auto mt-5 max-w-xl text-base text-slate-400">
-              The full demo runs offline, ships with 5 richly detailed clients,
-              and uses the same code path that talks to a real LeadSquared instance.
-            </p>
-
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <ShimmerButton onClick={onCta} className="px-6 py-3 text-sm">
-                <Play className="h-4 w-4" />
-                Launch Dashboard
-                <ArrowRight className="h-4 w-4" />
-              </ShimmerButton>
-              <a href="https://github.com" target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.02] px-5 py-3 text-sm font-medium text-slate-300 transition-all hover:bg-white/[0.06] hover:text-white">
-                <Github className="h-4 w-4" />View source
-              </a>
+        <div className="md:col-span-8 space-y-6">
+          {[
+            {
+              spoken: "Add a note that he's interested in the SIP pitch.",
+              parsed: "create_note → Rahul Mehta",
+              preview: "Note: \"Interested in SIP pitch\" — logged to HubSpot.",
+            },
+            {
+              spoken: "Schedule a follow-up call for next Tuesday at 10 AM.",
+              parsed: "schedule_follow_up → Tue · 10:00 IST",
+              preview: "Task: \"Follow-up call\" due Tue Jun 17 10:00 — created in HubSpot.",
+            },
+            {
+              spoken: "Mark the complaint as escalated.",
+              parsed: "mark_complaint_escalated · confirmation required",
+              preview: "Ticket CMP_001 status: open → escalated.",
+            },
+          ].map((c, i) => (
+            <div key={i} className="border border-ink/15 bg-paper">
+              <div className="grid grid-cols-1 divide-y divide-ink/15 md:grid-cols-12 md:divide-x md:divide-y-0">
+                <div className="px-4 py-3 md:col-span-1 md:flex md:items-center md:justify-center">
+                  <span className="font-display text-2xl text-ink/40">{`0${i + 1}`}</span>
+                </div>
+                <div className="px-4 py-4 md:col-span-5">
+                  <p className="font-edit-mono text-[9px] uppercase tracking-widest text-ink/50">RM speaks</p>
+                  <p className="mt-1 font-serif text-base italic text-ink/90">"{c.spoken}"</p>
+                </div>
+                <div className="px-4 py-4 md:col-span-3">
+                  <p className="font-edit-mono text-[9px] uppercase tracking-widest text-ink/50">SYNC parses</p>
+                  <p className="mt-1 font-edit-mono text-xs text-accent-red" style={{ color: "var(--color-accent-red)" }}>
+                    {c.parsed}
+                  </p>
+                </div>
+                <div className="px-4 py-4 md:col-span-3">
+                  <p className="font-edit-mono text-[9px] uppercase tracking-widest text-ink/50">Executed</p>
+                  <p className="mt-1 font-serif text-xs text-ink/70">{c.preview}</p>
+                </div>
+              </div>
             </div>
-          </div>
+          ))}
         </div>
       </div>
     </section>
   );
 }
 
-/* ─────────────────────────────── Footer ─────────────────────────────── */
+/* ─────────────────────────────── Numbers ────────────────────────────── */
 
-function LandingFooter() {
+function NumbersSection() {
   return (
-    <footer className="border-t border-white/[0.04] py-10">
-      <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 text-center md:flex-row md:text-left md:px-8">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-indigo-500/20 ring-1 ring-indigo-500/40">
-            <span className="text-xs font-bold text-indigo-300">S</span>
-          </div>
-          <span className="text-sm font-semibold">SYNC</span>
-          <span className="text-[11px] text-slate-700">·</span>
-          <span className="text-[11px] text-slate-600">GrowthX Voice AI Buildathon</span>
+    <section id="numbers" className="border-b border-ink/15 px-4 py-16 md:px-8 md:py-24">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 md:grid-cols-12">
+        <div className="md:col-span-4">
+          <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
+            Figure 4 · Before / After
+          </p>
+          <p className="mt-3 font-serif text-xl italic leading-snug text-ink/70">
+            Drawn from internal observation at two large Indian private banks and
+            one NBFC, across two hundred and forty Relationship Manager calls.
+          </p>
+          <Marginalia number="ii" className="md:static md:mt-6 md:w-full md:border-l-2 md:border-amber-700/40 md:bg-amber-50/40 md:pl-3">
+            Per-call infrastructure cost is dominated by Ringg AI minutes. At a steady
+            state of one thousand calls a day, the ledger reads ₹14.82 per call.
+          </Marginalia>
         </div>
-        <div className="text-[11px] text-slate-700">
-          Built with Ringg AI · OpenAI GPT-4o · FastAPI · React + Aceternity UI
+
+        <div className="md:col-span-8">
+          <DataTable
+            caption="The same RM, same client list, with and without Sync."
+            source="Source: Pilot data, Q1 · n=240 calls"
+            rows={[
+              { label: "Pre-meeting prep time", before: "15–20 min", after: "30 sec", delta: "−97%" },
+              { label: "Open complaints surfaced", before: "60%", after: "100%", delta: "+40%" },
+              { label: "Cross-sell pitch quality", before: "Generic", after: "Context-tied", delta: "3.2× conv." },
+              { label: "Touchpoint logged to CRM", before: "Rarely", after: "Always", delta: "100%" },
+              { label: "End-to-end voice latency", before: "—", after: "742ms", delta: "<800ms target" },
+              { label: "Per-call cost", before: "—", after: "₹14.82", delta: "—" },
+            ]}
+          />
+
+          <p className="mt-6 max-w-xl font-serif text-base italic leading-relaxed text-ink/70">
+            Scaled to fifty RMs at three meetings a day, that is{" "}
+            <strong className="font-semibold not-italic text-ink">2,700 hours per month reclaimed</strong>{" "}
+            and a cross-sell line that, if even half-realised, dwarfs the monthly
+            infrastructure bill several times over.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────────── Specs ────────────────────────────── */
+
+function SpecsSection() {
+  return (
+    <section id="specs" className="border-b border-ink/15 px-4 py-16 md:px-8 md:py-24">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 md:grid-cols-12">
+        <div className="md:col-span-4">
+          <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
+            Figure 5 · Stack
+          </p>
+          <p className="mt-3 font-serif text-xl italic leading-snug text-ink/70">
+            What ships on the day we hand the laptop over for the demo.
+          </p>
+        </div>
+
+        <div className="md:col-span-8 grid grid-cols-1 gap-x-12 gap-y-6 sm:grid-cols-2">
+          {[
+            { label: "Voice", body: "Ringg AI · outbound + inbound · 13 custom variables · Hinglish code-switch" },
+            { label: "Briefing AI", body: "OpenAI GPT-4o · template fallback when offline" },
+            { label: "Voice Commands", body: "Whisper STT · GPT-4o function calling · 8-tool schema" },
+            { label: "Backend", body: "Python 3.11 · FastAPI · SQLModel · aiosqlite · Authlib · httpx · tenacity" },
+            { label: "Frontend", body: "React 19 · Vite · TypeScript · Tailwind v4 · shadcn/ui · TanStack Query" },
+            { label: "Real-time", body: "WebSocket /ws/dashboard · SSE for transcript streaming" },
+            { label: "Secrets", body: "Fernet-encrypted OAuth tokens · pluggable to Vault / Secrets Manager" },
+            { label: "Tests", body: "42 passing — adapter contract · SOQL safety · OAuth · provisioning · voice" },
+          ].map((s) => (
+            <div key={s.label} className="border-t border-ink/15 pt-4">
+              <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
+                {s.label}
+              </p>
+              <p className="mt-1 font-serif text-base leading-snug text-ink/90">{s.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────────── CTA ────────────────────────────── */
+
+function CtaBlock({ onCta }: { onCta: () => void }) {
+  return (
+    <section className="border-b border-ink/15 bg-ink px-4 py-20 text-cream md:px-8 md:py-32">
+      <div className="mx-auto max-w-content text-center">
+        <p className="font-edit-mono text-[10px] uppercase tracking-widest text-cream/50">
+          § 07 · The Ask
+        </p>
+        <h2 className="mt-6 font-display text-5xl leading-[0.95] tracking-tight md:text-7xl">
+          Stop reading the CRM.
+          <br />
+          <em className="italic" style={{ color: "#F0C674" }}>Start knowing the client.</em>
+        </h2>
+        <p className="mx-auto mt-6 max-w-xl font-serif text-lg italic leading-snug text-cream/70">
+          The dashboard is live. The integrations are real. The demo runs without
+          a single API key. Open it now.
+        </p>
+        <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <button
+            onClick={onCta}
+            className="group inline-flex items-center gap-3 border-2 border-cream bg-cream px-8 py-4 font-edit-mono text-[11px] uppercase tracking-widest text-ink transition-all hover:bg-transparent hover:text-cream"
+          >
+            Open the dashboard
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+          </button>
+          <a
+            href="https://github.com/himanshu-thakur-7/sync-rm-briefing-ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-serif text-base italic text-cream/70 underline-offset-4 hover:text-cream hover:underline"
+          >
+            or read the source →
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────────── Colophon ────────────────────────────── */
+
+function Colophon() {
+  return (
+    <footer className="px-4 py-12 md:px-8">
+      <div className="mx-auto max-w-7xl border-t border-ink pt-8">
+        <div className="grid grid-cols-1 gap-8 font-edit-mono text-[11px] uppercase tracking-widest text-ink/60 md:grid-cols-4">
+          <div>
+            <p className="text-ink">Sync</p>
+            <p className="mt-1 normal-case tracking-normal font-serif italic text-ink/60">
+              Voice AI for your CRM. Built for the GrowthX Buildathon, 2025.
+            </p>
+          </div>
+          <div>
+            <p className="text-ink/40">Set in</p>
+            <p className="mt-1 text-ink/80">Fraunces · Instrument Serif · IBM Plex Mono</p>
+          </div>
+          <div>
+            <p className="text-ink/40">Powered by</p>
+            <p className="mt-1 text-ink/80">Ringg AI · OpenAI · FastAPI</p>
+          </div>
+          <div>
+            <p className="text-ink/40">Repository</p>
+            <a
+              href="https://github.com/himanshu-thakur-7/sync-rm-briefing-ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-block text-ink/80 hover:text-ink"
+            >
+              github · sync-rm-briefing-ai →
+            </a>
+          </div>
+        </div>
+
+        <div className="mt-8 flex items-center justify-between border-t border-ink/15 pt-4 font-edit-mono text-[10px] uppercase tracking-widest text-ink/40">
+          <span>© 2025 Sync · All rights reserved by no one in particular</span>
+          <span>Printed in pixels · Bengaluru</span>
         </div>
       </div>
     </footer>
-  );
-}
-
-/* ─────────────────────────────── Helpers ─────────────────────────────── */
-
-function Eyebrow({ children, color = "indigo" }: { children: React.ReactNode; color?: string }) {
-  const colors: Record<string, string> = {
-    indigo: "text-indigo-400 bg-indigo-500/10 border-indigo-500/20",
-    violet: "text-violet-400 bg-violet-500/10 border-violet-500/20",
-    cyan: "text-cyan-400 bg-cyan-500/10 border-cyan-500/20",
-  };
-  return (
-    <span className={`inline-block rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${colors[color] ?? colors.indigo}`}>
-      {children}
-    </span>
   );
 }

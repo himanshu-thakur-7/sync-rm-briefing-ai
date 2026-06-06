@@ -1,18 +1,14 @@
 /**
  * CRMEmbedPanel — renders the native CRM contact view in a sandboxed iframe.
- * Uses RELATIVE paths so Vite dev proxy works and prod just works.
+ * Editorial chrome around it. Uses relative URLs for Vite proxy.
  */
 import { useEffect, useRef, useState } from "react";
-import { ExternalLink, Loader2, PanelRightClose } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ExternalLink, Loader2 } from "lucide-react";
 import { CRMSourceBadge } from "./CRMSourceBadge";
 
 interface EmbedSpec {
-  url: string;
-  provider: string;
-  label: string;
-  sandbox_attrs: string;
-  may_block_frame: boolean;
+  url: string; provider: string; label: string;
+  sandbox_attrs: string; may_block_frame: boolean;
 }
 
 interface Props {
@@ -22,7 +18,7 @@ interface Props {
   onClose?: () => void;
 }
 
-export function CRMEmbedPanel({ connectionId, clientId, provider, onClose }: Props) {
+export function CRMEmbedPanel({ connectionId, clientId, provider }: Props) {
   const [spec, setSpec] = useState<EmbedSpec | null>(null);
   const [loading, setLoading] = useState(true);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -39,24 +35,16 @@ export function CRMEmbedPanel({ connectionId, clientId, provider, onClose }: Pro
     fetch(url, { headers: { "Accept": "application/json" } })
       .then(async r => {
         const ct = r.headers.get("content-type") || "";
-        if (ct.includes("application/json")) {
-          return r.json() as Promise<EmbedSpec>;
-        }
-        // Sandbox returns HTML directly — wrap into an EmbedSpec
+        if (ct.includes("application/json")) return r.json() as Promise<EmbedSpec>;
         return {
-          url,
-          provider,
-          label: "LeadSquared (Sandbox)",
-          sandbox_attrs: "allow-scripts allow-same-origin",
-          may_block_frame: false,
+          url, provider, label: "LeadSquared (Sandbox)",
+          sandbox_attrs: "allow-scripts allow-same-origin", may_block_frame: false,
         } as EmbedSpec;
       })
       .then(data => {
         setSpec({
           ...data,
-          url: data.url.startsWith("http")
-            ? data.url
-            : (data.url.startsWith("/") ? data.url : `/${data.url}`),
+          url: data.url.startsWith("http") ? data.url : (data.url.startsWith("/") ? data.url : `/${data.url}`),
         });
         setLoading(false);
       })
@@ -64,58 +52,51 @@ export function CRMEmbedPanel({ connectionId, clientId, provider, onClose }: Pro
         setSpec({
           url: `/api/v1/embeds/sandbox/contact/${clientId}`,
           provider, label: provider,
-          sandbox_attrs: "allow-scripts allow-same-origin",
-          may_block_frame: false,
+          sandbox_attrs: "allow-scripts allow-same-origin", may_block_frame: false,
         });
         setLoading(false);
       });
   }, [connectionId, clientId, provider]);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
+    <div className="flex h-full flex-col">
+      {/* Sub-header with provider */}
+      <div className="flex items-center justify-between border-b border-ink/15 bg-ink/[0.01] px-3 py-2">
         <div className="flex items-center gap-2">
           <CRMSourceBadge provider={spec?.provider ?? provider} />
-          <span className="text-xs font-semibold text-slate-300">Contact View</span>
+          <span className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/60">
+            Contact ID · {clientId}
+          </span>
         </div>
-        <div className="flex items-center gap-1">
-          {spec && !spec.may_block_frame && (
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-500 hover:text-slate-300" asChild>
-              <a href={spec.url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </Button>
-          )}
-          {onClose && (
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-500 hover:text-slate-300" onClick={onClose}>
-              <PanelRightClose className="h-3.5 w-3.5" />
-            </Button>
-          )}
-        </div>
+        {spec && !spec.may_block_frame && (
+          <a href={spec.url} target="_blank" rel="noopener noreferrer"
+            className="text-ink/50 hover:text-ink">
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
       </div>
 
-      <div className="relative flex-1 bg-white">
+      <div className="relative flex-1 bg-paper">
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#0d1117]">
-            <Loader2 className="h-5 w-5 animate-spin text-slate-600" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-ink/40" />
           </div>
         )}
 
         {spec && spec.may_block_frame && (
-          <div className="flex h-full flex-col items-center justify-center gap-3 bg-[#0d1117] p-6 text-center">
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
             <CRMSourceBadge provider={spec.provider} />
-            <p className="text-sm text-slate-400">
-              {spec.label} restricts third-party embedding.
-              <br />
-              <span className="text-[11px] text-slate-600">
-                In production, this would use the {spec.label} UI Extension SDK.
+            <p className="font-serif text-sm italic text-ink/60">
+              {spec.label} restricts third-party embedding.<br />
+              <span className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/40">
+                Production would use the {spec.label} UI Extension SDK.
               </span>
             </p>
-            <Button variant="outline" size="sm" className="border-white/[0.08] bg-white/[0.02] text-slate-300 hover:bg-white/[0.06]" asChild>
-              <a href={spec.url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="mr-2 h-3 w-3" />Open in {spec.label}
-              </a>
-            </Button>
+            <a href={spec.url} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 border-2 border-ink bg-paper px-4 py-2 font-edit-mono text-[10px] uppercase tracking-widest text-ink hover:bg-ink hover:text-cream">
+              <ExternalLink className="h-3 w-3" />
+              Open in {spec.label}
+            </a>
           </div>
         )}
 
@@ -146,11 +127,11 @@ export function CRMEmbedRail({ connections, clientId, defaultProvider, onClose }
   return (
     <div className="flex h-full flex-col">
       {connections.length > 1 && (
-        <div className="flex gap-1 border-b border-white/[0.06] px-2 pt-2">
+        <div className="flex gap-1 border-b border-ink/15 px-2 pt-2">
           {connections.map((c, i) => (
             <button key={c.id} onClick={() => setIdx(i)}
-              className={`rounded-t px-3 py-1.5 text-xs font-medium transition-colors ${
-                i === idx ? "border border-b-0 border-white/[0.06] bg-[#0d1117]" : "text-slate-500 hover:text-slate-300"
+              className={`px-3 py-1.5 font-edit-mono text-[10px] uppercase tracking-widest transition-colors ${
+                i === idx ? "border-x border-t border-ink bg-paper text-ink" : "text-ink/50 hover:text-ink"
               }`}>
               <CRMSourceBadge provider={c.provider} />
             </button>

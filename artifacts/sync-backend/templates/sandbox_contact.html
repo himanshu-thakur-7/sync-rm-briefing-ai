@@ -3,231 +3,399 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{ client.profile.name }} — LeadSquared (Sandbox)</title>
+  <title>{{ client.profile.name }} — Contact Filing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #020817; --card: #0d1117; --card2: #111827;
-      --border: rgba(255,255,255,0.06); --border-strong: rgba(255,255,255,0.12);
-      --text: #e2e8f0; --text-muted: #94a3b8; --text-faint: #475569;
-      --indigo: #6366f1; --indigo-soft: rgba(99,102,241,0.15);
-      --risk-very_low: #10b981; --risk-low: #3b82f6;
-      --risk-medium: #f59e0b; --risk-watch: #f97316; --risk-high: #ef4444;
+      --paper: #F5F1EB;
+      --paper-2: #EDE6D9;
+      --ink: #0B0B0A;
+      --rule: rgba(11,11,10,0.15);
+      --rule-strong: rgba(11,11,10,0.3);
+      --serif: "Fraunces", Georgia, serif;
+      --display: "Instrument Serif", "Fraunces", Georgia, serif;
+      --mono: "IBM Plex Mono", "Menlo", monospace;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, "Segoe UI", sans-serif; }
-    body { background: var(--bg); color: var(--text); font-size: 13px; min-height: 100vh; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-family: var(--serif); }
+    body {
+      background: var(--paper);
+      background-image:
+        radial-gradient(rgba(11,11,10,0.04) 1px, transparent 1px),
+        radial-gradient(rgba(11,11,10,0.025) 1px, transparent 1px);
+      background-size: 24px 24px, 13px 13px;
+      background-position: 0 0, 7px 7px;
+      color: var(--ink);
+      font-size: 13px;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .mono { font-family: var(--mono); }
+    .uppercase-mono {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: rgba(11,11,10,0.5);
+    }
+    .display { font-family: var(--display); }
+    .italic { font-style: italic; }
 
-    .header {
-      background: linear-gradient(180deg, #1e1b4b 0%, #0f172a 100%);
-      padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
-      border-bottom: 1px solid var(--border);
+    /* Masthead */
+    .masthead {
+      border-bottom: 2px double var(--ink);
+      padding: 12px 16px;
+      background: var(--paper);
     }
-    .brand { font-size: 11px; opacity: 0.7; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600; }
-    .sync-badge {
-      font-size: 9px; background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.4);
-      border-radius: 4px; padding: 3px 8px; font-weight: 700; color: #a5b4fc;
-      text-transform: uppercase; letter-spacing: 0.05em;
+    .masthead-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      border-bottom: 1px solid var(--rule);
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+    }
+    .crm-name {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: rgba(11,11,10,0.6);
+    }
+    .filing-id {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: rgba(11,11,10,0.5);
+    }
+    .filing-title {
+      font-family: var(--display);
+      font-size: 28px;
+      line-height: 1;
+      color: var(--ink);
+    }
+    .filing-title em { font-style: italic; }
+    .filing-meta {
+      font-family: var(--serif);
+      font-size: 13px;
+      font-style: italic;
+      color: rgba(11,11,10,0.7);
+      margin-top: 4px;
     }
 
-    .contact-header {
-      background: var(--card); border-bottom: 1px solid var(--border);
-      padding: 16px; display: flex; align-items: flex-start; gap: 12px;
-    }
-    .avatar {
-      width: 44px; height: 44px; border-radius: 50%;
-      background: linear-gradient(135deg, var(--indigo), #8b5cf6);
-      color: #fff; display: flex; align-items: center; justify-content: center;
-      font-size: 18px; font-weight: 700; flex-shrink: 0;
-      box-shadow: 0 0 20px rgba(99,102,241,0.3);
-    }
-    .contact-name { font-size: 17px; font-weight: 700; color: #fff; }
-    .contact-meta { color: var(--text-muted); margin-top: 2px; font-size: 12px; }
+    /* Risk chip — editorial */
     .risk-chip {
-      display: inline-block; font-size: 10px; font-weight: 700;
-      text-transform: uppercase; padding: 3px 8px; border-radius: 4px;
-      letter-spacing: 0.05em; margin-top: 6px;
+      display: inline-block;
+      padding: 2px 8px;
+      border: 1px solid;
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 6px;
     }
-    .risk-very_low { background: rgba(16,185,129,0.15); color: #6ee7b7; }
-    .risk-low { background: rgba(59,130,246,0.15); color: #93c5fd; }
-    .risk-medium { background: rgba(245,158,11,0.15); color: #fcd34d; }
-    .risk-watch { background: rgba(249,115,22,0.15); color: #fdba74; }
-    .risk-high { background: rgba(239,68,68,0.15); color: #fca5a5; }
+    .risk-very_low { color: #166534; border-color: #16653433; background: rgba(16,101,52,0.06); }
+    .risk-low { color: #1e40af; border-color: #1e40af33; background: rgba(30,64,175,0.06); }
+    .risk-medium { color: #92400e; border-color: #92400e33; background: rgba(146,64,14,0.06); }
+    .risk-watch { color: #9a3412; border-color: #9a341233; background: rgba(154,52,18,0.06); }
+    .risk-high { color: #991b1b; border-color: #991b1b33; background: rgba(153,27,27,0.06); }
 
-    .tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--card); padding: 0 8px; }
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--rule);
+      background: var(--paper);
+      padding: 0 8px;
+    }
     .tab {
-      padding: 10px 14px; cursor: pointer; font-size: 11px; font-weight: 600;
-      color: var(--text-faint); border-bottom: 2px solid transparent;
-      text-transform: uppercase; letter-spacing: 0.05em;
-      transition: all 0.2s;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      color: rgba(11,11,10,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.15s;
     }
-    .tab:hover { color: var(--text-muted); }
-    .tab.active { color: #a5b4fc; border-bottom-color: var(--indigo); }
+    .tab:hover { color: rgba(11,11,10,0.7); }
+    .tab.active {
+      color: var(--ink);
+      border-bottom-color: var(--ink);
+    }
 
-    .content { padding: 12px; }
-    .section { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
-    .section-title {
-      font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-faint);
-      padding: 10px 14px; border-bottom: 1px solid var(--border); letter-spacing: 0.1em;
-    }
-    .field-row {
-      display: flex; align-items: flex-start; padding: 8px 14px;
-      border-bottom: 1px solid rgba(255,255,255,0.03);
-      transition: background 0.15s;
-    }
-    .field-row:hover { background: rgba(255,255,255,0.02); cursor: pointer; }
-    .field-row:last-child { border-bottom: none; }
-    .field-label { width: 42%; color: var(--text-faint); font-size: 11px; }
-    .field-value { flex: 1; font-weight: 500; color: var(--text); font-size: 12px; }
+    /* Content */
+    .content { padding: 12px 16px; }
 
-    .product-card {
-      padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.03);
+    /* Sections (like article sub-heads) */
+    .section { margin-bottom: 16px; }
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--rule);
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: rgba(11,11,10,0.6);
+      margin-bottom: 6px;
     }
-    .product-card:last-child { border-bottom: none; }
-    .product-type { font-weight: 700; text-transform: capitalize; font-size: 13px; color: #fff; }
-    .product-meta { color: var(--text-muted); margin-top: 4px; font-size: 11px; }
+    .section-head .sectnum { color: rgba(11,11,10,0.3); }
 
-    .activity-row {
-      padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); display: flex; gap: 10px;
+    /* Definition-list style rows */
+    .dl { display: grid; grid-template-columns: 40% 60%; row-gap: 2px; }
+    .dl dt {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: rgba(11,11,10,0.45);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 5px 0;
+      border-bottom: 1px dotted rgba(11,11,10,0.1);
     }
-    .activity-row:last-child { border-bottom: none; }
-    .activity-icon {
-      width: 26px; height: 26px; border-radius: 50%;
-      background: var(--indigo-soft); color: #a5b4fc;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 11px; flex-shrink: 0; margin-top: 2px;
+    .dl dd {
+      font-family: var(--serif);
+      font-size: 13px;
+      color: rgba(11,11,10,0.9);
+      padding: 5px 0;
+      border-bottom: 1px dotted rgba(11,11,10,0.1);
     }
-    .activity-note { flex: 1; }
-    .activity-text { color: var(--text); font-size: 12px; line-height: 1.5; }
-    .activity-date { color: var(--text-faint); font-size: 10px; margin-top: 4px; }
+    .dl dd em { font-style: italic; color: rgba(11,11,10,0.7); }
+    .dl .last { border-bottom: none; }
 
-    .complaint-row { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); }
-    .complaint-row:last-child { border-bottom: none; }
+    /* Activity items */
+    .activity {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(11,11,10,0.08);
+    }
+    .activity:last-child { border-bottom: none; }
+    .activity-meta {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(11,11,10,0.5);
+      margin-bottom: 4px;
+    }
+    .activity-body {
+      font-family: var(--serif);
+      font-size: 13px;
+      font-style: italic;
+      line-height: 1.5;
+      color: rgba(11,11,10,0.85);
+    }
+
+    /* Products */
+    .product {
+      padding: 10px 12px;
+      border: 1px solid var(--rule);
+      background: var(--paper);
+      margin-bottom: 6px;
+    }
+    .product-head {
+      font-family: var(--display);
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--ink);
+      text-transform: capitalize;
+    }
+    .product-meta {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: rgba(11,11,10,0.55);
+      margin-top: 4px;
+    }
+
+    /* Complaint */
+    .complaint {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(11,11,10,0.08);
+    }
+    .complaint-cat {
+      font-family: var(--display);
+      font-size: 15px;
+      color: var(--ink);
+    }
     .complaint-status {
-      display: inline-block; font-size: 9px; font-weight: 700; text-transform: uppercase;
-      padding: 2px 6px; border-radius: 3px; margin-left: 6px; letter-spacing: 0.05em;
+      display: inline-block;
+      padding: 1px 6px;
+      margin-left: 6px;
+      border: 1px solid;
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
     }
-    .status-open { background: rgba(245,158,11,0.15); color: #fcd34d; }
-    .status-escalated { background: rgba(239,68,68,0.15); color: #fca5a5; }
-    .status-resolved { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+    .status-open { color: #92400e; border-color: #92400e33; background: rgba(146,64,14,0.06); }
+    .status-escalated { color: #991b1b; border-color: #991b1b33; background: rgba(153,27,27,0.06); }
+    .status-resolved { color: #166534; border-color: #16653433; background: rgba(16,101,52,0.06); }
+    .complaint-body {
+      font-family: var(--serif);
+      font-size: 12px;
+      font-style: italic;
+      color: rgba(11,11,10,0.75);
+      margin-top: 4px;
+      line-height: 1.5;
+    }
 
+    /* Pitch — pull-quote style */
+    .pitch-item {
+      padding: 10px 0 10px 12px;
+      border-left: 2px solid var(--ink);
+      margin-bottom: 10px;
+    }
+    .pitch-product {
+      font-family: var(--display);
+      font-size: 14px;
+      color: var(--ink);
+    }
+    .pitch-angle {
+      font-family: var(--serif);
+      font-size: 12px;
+      font-style: italic;
+      color: rgba(11,11,10,0.75);
+      margin-top: 4px;
+      line-height: 1.55;
+    }
+
+    /* SYNC banner */
     .sync-banner {
-      background: var(--indigo-soft); border: 1px solid rgba(99,102,241,0.3); border-radius: 8px;
-      padding: 10px 14px; margin: 12px; font-size: 11px; color: #a5b4fc;
-      display: flex; align-items: center; gap: 8px;
-      animation: bannerSlideIn 0.4s ease-out;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      margin: 8px 12px;
+      border: 1px solid rgba(146,64,14,0.4);
+      background: rgba(254,243,199,0.5);
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #92400e;
+      animation: bannerSlide 0.4s ease-out;
     }
-    @keyframes bannerSlideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
-    .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--indigo); box-shadow: 0 0 8px rgba(99,102,241,0.6); }
-
+    @keyframes bannerSlide { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+    .sync-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #92400e;
+    }
     .hidden { display: none; }
 
-    /* Subtle scrollbar */
+    /* Scrollbar */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
+    ::-webkit-scrollbar-thumb { background: rgba(11,11,10,0.15); border-radius: 0; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <span class="brand">LeadSquared CRM</span>
-    <span class="sync-badge">⚡ SYNC Sandbox</span>
-  </div>
+  <!-- Masthead -->
+  <header class="masthead">
+    <div class="masthead-top">
+      <span class="crm-name">LeadSquared Filing</span>
+      <span class="filing-id">No. {{ client.profile.client_id }}</span>
+    </div>
+    <h1 class="filing-title">{{ client.profile.name }}</h1>
+    <p class="filing-meta italic">
+      {{ client.profile.occupation }} · {{ client.profile.company }} · {{ client.profile.city }}
+    </p>
+    <span class="risk-chip risk-{{ client.risk.score }}">{{ client.risk.score.replace("_", " ") }}</span>
+  </header>
 
+  <!-- SYNC banner (hidden until parent posts) -->
   <div id="sync-banner" class="sync-banner hidden">
     <div class="sync-dot"></div>
-    <span id="sync-banner-text">SYNC just briefed the RM on this contact.</span>
+    <span id="sync-banner-text">Sync briefed the RM on this contact.</span>
   </div>
 
-  <div class="contact-header">
-    <div class="avatar">{{ client.profile.name[0] }}</div>
-    <div>
-      <div class="contact-name">{{ client.profile.name }}</div>
-      <div class="contact-meta">{{ client.profile.occupation }} · {{ client.profile.company }}</div>
-      <div class="contact-meta">{{ client.profile.city }}</div>
-      <span class="risk-chip risk-{{ client.risk.score }}">{{ client.risk.score.replace("_", " ") }}</span>
-    </div>
-  </div>
-
+  <!-- Tabs -->
   <div class="tabs">
     <div class="tab active" onclick="showTab('overview', event)">Overview</div>
     <div class="tab" onclick="showTab('activities', event)">Activities</div>
-    <div class="tab" onclick="showTab('loans', event)">Loans</div>
+    <div class="tab" onclick="showTab('products', event)">Loans</div>
     <div class="tab" onclick="showTab('complaints', event)">Complaints</div>
   </div>
 
   <!-- Overview -->
   <div id="tab-overview" class="content">
     <div class="section">
-      <div class="section-title">Basic Info</div>
-      <div class="field-row"><div class="field-label">Full Name</div><div class="field-value">{{ client.profile.name }}</div></div>
-      <div class="field-row"><div class="field-label">Age</div><div class="field-value">{{ client.profile.age }}</div></div>
-      <div class="field-row"><div class="field-label">Job Title</div><div class="field-value">{{ client.profile.occupation }}</div></div>
-      <div class="field-row"><div class="field-label">Company</div><div class="field-value">{{ client.profile.company }}</div></div>
-      <div class="field-row"><div class="field-label">City</div><div class="field-value">{{ client.profile.city }}</div></div>
+      <div class="section-head"><span class="sectnum">§ A</span><span>·</span><span>Basic Info</span></div>
+      <dl class="dl">
+        <dt>Full Name</dt><dd>{{ client.profile.name }}</dd>
+        <dt>Age</dt><dd>{{ client.profile.age }} years</dd>
+        <dt>Title</dt><dd>{{ client.profile.occupation }}</dd>
+        <dt>Company</dt><dd>{{ client.profile.company }}</dd>
+        <dt class="last">City</dt><dd class="last">{{ client.profile.city }}</dd>
+      </dl>
     </div>
 
     <div class="section">
-      <div class="section-title">Risk Assessment</div>
-      <div class="field-row">
-        <div class="field-label">Risk Score</div>
-        <div class="field-value">{{ client.risk.score.replace("_", " ").title() }}</div>
-      </div>
-      {% for factor in client.risk.factors %}
-      <div class="field-row">
-        <div class="field-label">{% if loop.first %}Factors{% else %}&nbsp;{% endif %}</div>
-        <div class="field-value">{{ factor }}</div>
-      </div>
-      {% endfor %}
+      <div class="section-head"><span class="sectnum">§ B</span><span>·</span><span>Risk Profile</span></div>
+      <dl class="dl">
+        <dt>Score</dt><dd>{{ client.risk.score.replace("_", " ").title() }}</dd>
+        {% for factor in client.risk.factors %}
+        <dt>{% if loop.first %}Factor{% else %}&nbsp;{% endif %}</dt><dd><em>{{ factor }}</em></dd>
+        {% endfor %}
+      </dl>
     </div>
 
     <div class="section">
-      <div class="section-title">Cross-Sell Opportunities</div>
+      <div class="section-head"><span class="sectnum">§ C</span><span>·</span><span>Cross-Sell Pitches</span></div>
       {% for cs in client.cross_sell %}
-      <div class="field-row">
-        <div class="field-label">{{ cs.product[:30] }}{% if cs.product|length > 30 %}…{% endif %}</div>
-        <div class="field-value" style="font-size:11px; color: var(--text-muted)">{{ cs.pitch_angle[:90] }}…</div>
+      <div class="pitch-item">
+        <div class="pitch-product">{{ cs.product }}</div>
+        <div class="pitch-angle">"{{ cs.pitch_angle }}"</div>
       </div>
       {% endfor %}
+      {% if not client.cross_sell %}
+      <p style="color:rgba(11,11,10,0.4); font-style:italic; padding:8px 0;">No active pitches.</p>
+      {% endif %}
     </div>
   </div>
 
   <!-- Activities -->
   <div id="tab-activities" class="content hidden">
     <div class="section">
-      <div class="section-title">Recent Activities</div>
+      <div class="section-head"><span class="sectnum">§ D</span><span>·</span><span>Recent Activities</span></div>
       {% for interaction in client.interactions %}
-      <div class="activity-row">
-        <div class="activity-icon">{% if interaction.channel == "phone" %}📞{% elif interaction.channel == "branch" %}🏢{% elif interaction.channel == "email" %}✉{% else %}📱{% endif %}</div>
-        <div class="activity-note">
-          <div class="activity-text">{{ interaction.summary[:120] }}{% if interaction.summary|length > 120 %}…{% endif %}</div>
-          <div class="activity-date">{{ interaction.date }} · {{ interaction.rm_name }}</div>
+      <div class="activity">
+        <div class="activity-meta">
+          {{ interaction.date }} · {{ interaction.channel.upper() }} · {{ interaction.rm_name }}
         </div>
+        <div class="activity-body">"{{ interaction.summary }}"</div>
       </div>
       {% endfor %}
       {% if not client.interactions %}
-      <div style="padding:16px; color: var(--text-faint); text-align:center; font-size:11px;">No activities yet.</div>
+      <p style="color:rgba(11,11,10,0.4); font-style:italic; padding:8px 0;">No activities yet.</p>
       {% endif %}
     </div>
   </div>
 
   <!-- Loans -->
-  <div id="tab-loans" class="content hidden">
+  <div id="tab-products" class="content hidden">
     <div class="section">
-      <div class="section-title">Active Loans &amp; Products</div>
-      {% for product in client.products %}
-      <div class="product-card">
-        <div class="product-type">{{ product.product_type.replace("_", " ").title() }}</div>
+      <div class="section-head"><span class="sectnum">§ E</span><span>·</span><span>Active Products</span></div>
+      {% for p in client.products %}
+      <div class="product">
+        <div class="product-head">{{ p.product_type.replace("_", " ").title() }}</div>
         <div class="product-meta">
-          {% if product.principal %}Principal: ₹{{ "{:,.0f}".format(product.principal) }}{% endif %}
-          {% if product.emi %} · EMI: ₹{{ "{:,.0f}".format(product.emi) }}/mo{% endif %}
+          {% if p.principal %}Principal ₹{{ "{:,.0f}".format(p.principal) }}{% endif %}
+          {% if p.emi %} · EMI ₹{{ "{:,.0f}".format(p.emi) }}/mo{% endif %}
         </div>
         <div class="product-meta">
-          {{ product.months_paid }}/{{ product.tenure_months }} paid · Next due {{ product.next_due_date }}
+          {{ p.months_paid }}/{{ p.tenure_months }} paid · Next due {{ p.next_due_date }}
         </div>
       </div>
       {% endfor %}
       {% if not client.products %}
-      <div style="padding:16px; color: var(--text-faint); text-align:center; font-size:11px;">No active products.</div>
+      <p style="color:rgba(11,11,10,0.4); font-style:italic; padding:8px 0;">No active products.</p>
       {% endif %}
     </div>
   </div>
@@ -235,17 +403,17 @@
   <!-- Complaints -->
   <div id="tab-complaints" class="content hidden">
     <div class="section">
-      <div class="section-title">Complaints &amp; Cases</div>
-      {% for complaint in client.complaints %}
-      <div class="complaint-row">
-        <strong style="color: #fff;">{{ complaint.category }}</strong>
-        <span class="complaint-status status-{{ complaint.status }}">{{ complaint.status }}</span>
-        <div style="margin-top:6px; color: var(--text-muted); font-size: 11px; line-height: 1.5;">{{ complaint.summary }}</div>
-        <div class="activity-date">{{ complaint.date }}</div>
+      <div class="section-head"><span class="sectnum">§ F</span><span>·</span><span>Complaints &amp; Cases</span></div>
+      {% for c in client.complaints %}
+      <div class="complaint">
+        <span class="complaint-cat">{{ c.category }}</span>
+        <span class="complaint-status status-{{ c.status }}">{{ c.status }}</span>
+        <div class="complaint-body">"{{ c.summary }}"</div>
+        <div class="activity-meta" style="margin-top:4px;">Filed {{ c.date }}</div>
       </div>
       {% endfor %}
       {% if not client.complaints %}
-      <div style="padding:16px; color: var(--text-faint); text-align:center; font-size:11px;">No complaints on record.</div>
+      <p style="color:rgba(11,11,10,0.4); font-style:italic; padding:8px 0;">No complaints on record.</p>
       {% endif %}
     </div>
   </div>
@@ -257,12 +425,11 @@
       evt.target.classList.add('active');
       document.getElementById('tab-' + name).classList.remove('hidden');
     }
-
     window.addEventListener('message', function(evt) {
       if (evt.data && evt.data.type === 'sync_briefing_received') {
         const banner = document.getElementById('sync-banner');
         const text = document.getElementById('sync-banner-text');
-        if (evt.data.summary) text.textContent = '⚡ SYNC briefed RM: ' + evt.data.summary.slice(0, 80) + '…';
+        if (evt.data.summary) text.textContent = 'Sync briefed: ' + evt.data.summary.slice(0, 80) + '…';
         banner.classList.remove('hidden');
       }
     });

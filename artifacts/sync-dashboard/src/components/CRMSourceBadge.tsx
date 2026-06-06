@@ -1,31 +1,34 @@
 /**
- * CRMSourceBadge — small coloured badge showing which CRM a client comes from.
- * Provider colour palette matches the real brand colours.
+ * CRMSourceBadge — editorial pill with a colored dot + provider name in mono.
+ * No glow, no gradient — just a sharp-bordered chip.
  */
 import { cn } from "@/lib/utils";
 
-const PROVIDER_META: Record<string, { label: string; bg: string; text: string }> = {
-  hubspot:         { label: "HubSpot",      bg: "bg-orange-100 dark:bg-orange-500/15",  text: "text-orange-700 dark:text-orange-300" },
-  salesforce:      { label: "Salesforce",   bg: "bg-blue-100 dark:bg-blue-500/15",      text: "text-blue-700 dark:text-blue-300" },
-  zoho:            { label: "Zoho",         bg: "bg-red-100 dark:bg-red-500/15",        text: "text-red-700 dark:text-red-300" },
-  dynamics:        { label: "Dynamics",     bg: "bg-indigo-100 dark:bg-indigo-500/15",  text: "text-indigo-700 dark:text-indigo-300" },
-  freshworks:      { label: "Freshworks",   bg: "bg-green-100 dark:bg-green-500/15",    text: "text-green-700 dark:text-green-300" },
-  leadsquared:     { label: "LeadSquared",  bg: "bg-purple-100 dark:bg-purple-500/15",  text: "text-purple-700 dark:text-purple-300" },
-  fake_leadsquared:{ label: "LSQ Sandbox",  bg: "bg-slate-100 dark:bg-slate-500/15",    text: "text-slate-600 dark:text-slate-400" },
-  mock:            { label: "Demo",         bg: "bg-slate-100 dark:bg-slate-500/15",    text: "text-slate-500 dark:text-slate-400" },
+const PROVIDER_META: Record<string, { label: string; dot: string }> = {
+  hubspot:          { label: "HubSpot",      dot: "#FF7A59" },
+  salesforce:       { label: "Salesforce",   dot: "#00A1E0" },
+  zoho:             { label: "Zoho",         dot: "#E74C3C" },
+  dynamics:         { label: "Dynamics",     dot: "#0078D4" },
+  freshworks:       { label: "Freshworks",   dot: "#10B981" },
+  leadsquared:      { label: "LeadSquared",  dot: "#8B5CF6" },
+  fake_leadsquared: { label: "LSQ Sandbox",  dot: "#B58A2D" },
+  mock:             { label: "Demo",         dot: "#737373" },
 };
 
 export function CRMSourceBadge({ provider, className }: { provider: string; className?: string }) {
-  const meta = PROVIDER_META[provider] ?? { label: provider, bg: "bg-muted", text: "text-muted-foreground" };
+  const meta = PROVIDER_META[provider] ?? { label: provider, dot: "#737373" };
   return (
-    <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide", meta.bg, meta.text, className)}>
+    <span className={cn(
+      "inline-flex items-center gap-1.5 border border-ink/30 bg-paper px-1.5 py-0.5 font-edit-mono text-[9px] font-semibold uppercase tracking-widest text-ink/80",
+      className
+    )}>
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: meta.dot }} />
       {meta.label}
     </span>
   );
 }
 
 export function providerFromConnectionId(connectionId: string): string {
-  // Heuristic from the id prefix — override with real provider data when available.
   for (const key of Object.keys(PROVIDER_META)) {
     if (connectionId.includes(key)) return key;
   }

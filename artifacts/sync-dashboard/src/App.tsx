@@ -26,7 +26,8 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark">
+      {/* Forced light — the editorial cream aesthetic owns the whole app now */}
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} forcedTheme="light">
         <TooltipProvider>
           <ConnectionProvider>
             <PiiProvider>

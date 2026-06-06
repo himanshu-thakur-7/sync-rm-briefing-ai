@@ -1,11 +1,14 @@
-import { Moon, Sun, Wifi, WifiOff, Settings } from "lucide-react";
-import { useTheme } from "next-themes";
-import { Button } from "@/components/ui/button";
+/**
+ * Editorial dashboard masthead — like the running header of a newspaper.
+ * "SYNC · The Briefing Desk · Vol. II No. 1 · LIVE"
+ */
+import { Settings } from "lucide-react";
+import { useLocation } from "wouter";
 import { ConnectionSwitcher } from "./ConnectionSwitcher";
 import { PiiScrubToggle } from "./PiiScrubToggle";
 import { VoiceCommandBar } from "./VoiceCommandBar";
 import { useConnection } from "@/lib/connection-context";
-import { useLocation } from "wouter";
+import { useEffect, useState } from "react";
 
 interface Props {
   isConnected: boolean;
@@ -15,81 +18,96 @@ interface Props {
 }
 
 export function Header({ isConnected, latencyMs, activeClientId, rmName }: Props) {
-  const { resolvedTheme, setTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
   const { isSandbox } = useConnection();
   const [, navigate] = useLocation();
+  const [date, setDate] = useState("");
+
+  useEffect(() => {
+    const d = new Date();
+    setDate(d.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).toUpperCase());
+  }, []);
 
   return (
     <div className="sticky top-0 z-50">
-      <header className="relative border-b border-white/[0.06] bg-[#020817]/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:px-6 lg:px-8">
-          {/* Brand */}
+      {/* Date strip */}
+      <div className="border-b border-ink/15 bg-paper">
+        <div className="mx-auto flex h-7 max-w-[1400px] items-center justify-between px-4 font-edit-mono text-[10px] uppercase tracking-widest text-ink/60 md:px-6">
           <div className="flex items-center gap-3">
-            <div className="relative flex h-9 w-9 items-center justify-center rounded-lg">
-              <div className="absolute inset-0 rounded-lg bg-indigo-500/20 ring-1 ring-indigo-500/40" />
-              <div className="absolute inset-0 rounded-lg opacity-60"
-                style={{ background: "radial-gradient(circle, rgba(99,102,241,0.4) 0%, transparent 70%)" }} />
-              <span className="relative text-sm font-bold text-indigo-300">S</span>
-            </div>
-            <div>
-              <h1 className="text-base font-bold tracking-tight text-white leading-none">SYNC</h1>
-              <span className="text-[10px] text-slate-500">Voice AI for your CRM</span>
-            </div>
+            <span className="hidden md:inline">{date}</span>
+            <span className="hidden md:inline text-ink/30">·</span>
+            <span>Vol. II · No. 1 · The Briefing Desk</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:inline text-ink/40">GrowthX Buildathon</span>
+            <a href="/" className="hover:text-ink">← Back to home</a>
+          </div>
+        </div>
+      </div>
+
+      {/* Masthead */}
+      <header className="border-b-2 border-double border-ink bg-paper">
+        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-4 md:px-6">
+          {/* Wordmark */}
+          <div className="flex items-baseline gap-4">
+            <a href="/" className="font-display text-4xl leading-none tracking-tight text-ink md:text-5xl">
+              S<span className="italic">y</span>nc
+            </a>
+            <span className="hidden font-serif text-sm italic text-ink/70 md:inline">
+              The Briefing Desk
+            </span>
           </div>
 
-          {/* Right cluster */}
+          {/* Controls */}
           <div className="flex items-center gap-2">
-            {/* Live indicator */}
-            <div className="hidden h-8 items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 text-xs sm:flex">
-              {isConnected
-                ? <><span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" /></span><span className="text-emerald-400 font-medium">Live</span></>
-                : <><WifiOff className="h-3 w-3 text-red-400" /><span className="text-red-400 font-medium">Offline</span></>
-              }
-            </div>
-
-            {latencyMs !== null && isConnected && (
-              <div className="hidden h-8 items-center rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 font-mono text-xs text-slate-400 sm:flex">
-                {latencyMs}ms
-              </div>
-            )}
-
+            <LiveIndicator isConnected={isConnected} latencyMs={latencyMs} />
+            <span className="hidden md:block h-6 w-px bg-ink/15" />
             <ConnectionSwitcher />
-
-            {activeClientId && (
-              <VoiceCommandBar clientId={activeClientId} rmName={rmName} />
-            )}
-
+            {activeClientId && <VoiceCommandBar clientId={activeClientId} rmName={rmName} />}
             <PiiScrubToggle />
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 border border-white/[0.06] bg-white/[0.03] text-slate-400 hover:bg-white/[0.06] hover:text-white"
+            <button
               onClick={() => navigate("/settings/integrations")}
+              className="inline-flex h-8 w-8 items-center justify-center border border-ink/30 bg-paper text-ink/70 transition-colors hover:bg-ink hover:text-cream"
               title="Integrations"
             >
               <Settings className="h-3.5 w-3.5" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 border border-white/[0.06] bg-white/[0.03] text-slate-400 hover:bg-white/[0.06] hover:text-white"
-              onClick={() => setTheme(isDark ? "light" : "dark")}
-            >
-              {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-            </Button>
+            </button>
           </div>
         </div>
-
-        {/* Sandbox ribbon */}
-        {isSandbox && (
-          <div className="border-t border-amber-500/20 bg-amber-500/5 px-4 py-1 text-center text-[10px] font-medium tracking-wide text-amber-400/80 uppercase">
-            Sandbox — LeadSquared MockTransport · Switch source in the selector above
-          </div>
-        )}
       </header>
+
+      {/* Sandbox ribbon */}
+      {isSandbox && (
+        <div className="border-b border-ink/15 bg-amber-50 px-4 py-1.5 text-center font-edit-mono text-[10px] uppercase tracking-widest text-amber-900 md:px-6">
+          [ Sandbox Edition — Demo data via LeadSquared adapter on MockTransport. Switch source above to go live. ]
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LiveIndicator({ isConnected, latencyMs }: { isConnected: boolean; latencyMs: number | null }) {
+  return (
+    <div className="hidden h-8 items-center gap-2 border border-ink/30 bg-paper px-2.5 font-edit-mono text-[10px] uppercase tracking-widest md:flex">
+      {isConnected ? (
+        <>
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-700 opacity-60" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-700" />
+          </span>
+          <span className="font-semibold text-emerald-800">Live</span>
+          {latencyMs !== null && (
+            <>
+              <span className="text-ink/30">·</span>
+              <span className="text-ink/60">{latencyMs}ms</span>
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <span className="h-1.5 w-1.5 rounded-full bg-red-700" />
+          <span className="font-semibold text-red-800">Offline</span>
+        </>
+      )}
     </div>
   );
 }

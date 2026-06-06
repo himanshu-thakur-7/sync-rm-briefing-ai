@@ -1,3 +1,7 @@
+/**
+ * Editorial Sync Panel — feels like a form filed on official stationery.
+ * Section header in serif, mono labels, ruled inputs, ink-black CTA.
+ */
 import { useEffect, useState } from "react";
 import {
   ClientFullProfile, ClientProfile, LoanProduct,
@@ -9,14 +13,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  CheckCircle2, Loader2, PhoneCall, ShieldAlert, Sparkles, PanelRightOpen, Mic,
+  CheckCircle2, Loader2, ArrowRight, ShieldAlert, Sparkles, PanelRightOpen, Mic,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { CRMSourceBadge, providerFromConnectionId } from "./CRMSourceBadge";
-import { ShimmerButton } from "./aceternity/shimmer-button";
-import { GlowCard } from "./aceternity/glow-card";
 import { useConnection } from "@/lib/connection-context";
 import { usePii } from "@/lib/pii-context";
 
@@ -57,35 +59,35 @@ export function SyncPanel({ onClientSelect, onRmNameChange, onShowEmbed }: Props
 
   return (
     <>
-      <GlowCard glowColor="rgba(99,102,241,0.25)" className="p-5">
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">Sync A Client</span>
-              <CRMSourceBadge provider={provider} />
-            </div>
-            <p className="mt-1 text-xs text-slate-500">Trigger a Ringg briefing call to the RM.</p>
+      <section className="border border-ink/15 bg-paper">
+        {/* Section header */}
+        <div className="flex items-baseline justify-between border-b border-ink/15 bg-ink/[0.02] px-4 py-2.5">
+          <div className="flex items-baseline gap-2 font-edit-mono text-[10px] uppercase tracking-widest text-ink/60">
+            <span className="text-ink/40">§</span>
+            <span>02</span>
+            <span className="text-ink/30">·</span>
+            <span>Brief A Client</span>
           </div>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 ring-1 ring-indigo-500/20">
-            <PhoneCall className="h-3.5 w-3.5 text-indigo-400" />
-          </div>
+          <CRMSourceBadge provider={provider} />
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-4 p-5">
           {/* Client select */}
           <div className="space-y-1.5">
-            <Label className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Client</Label>
+            <Label className="font-edit-mono text-[9px] uppercase tracking-widest text-ink/50">
+              Client
+            </Label>
             <Select value={selectedClient} onValueChange={setSelectedClient} disabled={isLoading || isPending}>
-              <SelectTrigger className="h-10 border-white/[0.08] bg-white/[0.02] text-white placeholder:text-slate-600 focus:ring-1 focus:ring-indigo-500/50">
+              <SelectTrigger className="h-10 rounded-none border border-ink/30 bg-paper font-serif text-ink shadow-none focus:border-ink focus:ring-0">
                 <SelectValue placeholder={isLoading ? "Loading…" : "Select client…"} />
               </SelectTrigger>
-              <SelectContent className="border-white/[0.08] bg-[#0d1117]">
+              <SelectContent className="rounded-none border-ink/30 bg-paper">
                 {clients?.map(c => (
-                  <SelectItem key={c.client_id} value={c.client_id} className="text-slate-200 focus:bg-white/[0.06]">
+                  <SelectItem key={c.client_id} value={c.client_id} className="font-serif text-ink focus:bg-ink/[0.05]">
                     <div className="flex items-center gap-2">
                       <RiskDot score={c.risk_score} />
                       <span>{scrub(c.name, "name")}</span>
-                      <span className="text-[10px] text-slate-500">{c.company}</span>
+                      <span className="font-edit-mono text-[10px] text-ink/50">· {c.company}</span>
                     </div>
                   </SelectItem>
                 ))}
@@ -100,51 +102,66 @@ export function SyncPanel({ onClientSelect, onRmNameChange, onShowEmbed }: Props
 
           {/* RM Name */}
           <div className="space-y-1.5">
-            <Label className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">RM Name</Label>
-            <Input value={rmName} onChange={e => setRmName(e.target.value)} disabled={isPending}
-              className="h-10 border-white/[0.08] bg-white/[0.02] text-white placeholder:text-slate-600 focus-visible:ring-indigo-500/50" />
+            <Label className="font-edit-mono text-[9px] uppercase tracking-widest text-ink/50">
+              RM Name
+            </Label>
+            <Input
+              value={rmName}
+              onChange={e => setRmName(e.target.value)}
+              disabled={isPending}
+              className="h-10 rounded-none border border-ink/30 bg-paper font-serif text-ink shadow-none focus-visible:border-ink focus-visible:ring-0"
+            />
           </div>
 
           {/* RM Phone */}
           <div className="space-y-1.5">
-            <Label className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">RM Phone</Label>
-            <Input value={rmPhone} onChange={e => setRmPhone(e.target.value)} disabled={isPending}
-              className="h-10 border-white/[0.08] bg-white/[0.02] font-mono text-white placeholder:text-slate-600 focus-visible:ring-indigo-500/50" />
+            <Label className="font-edit-mono text-[9px] uppercase tracking-widest text-ink/50">
+              RM Phone
+            </Label>
+            <Input
+              value={rmPhone}
+              onChange={e => setRmPhone(e.target.value)}
+              disabled={isPending}
+              className="h-10 rounded-none border border-ink/30 bg-paper font-edit-mono text-ink shadow-none focus-visible:border-ink focus-visible:ring-0"
+            />
           </div>
 
-          {/* Sync button */}
-          <ShimmerButton
-            className={`mt-1 w-full text-sm font-semibold ${isSuccess && !isPending ? "opacity-80" : ""}`}
+          {/* Submit */}
+          <button
             onClick={handleSync}
             disabled={!selectedClient || !rmPhone || !rmName || isPending}
-            background={isSuccess && !isPending
-              ? "radial-gradient(ellipse 80% 50% at 50% 120%, #14532d, #0f172a)"
-              : "radial-gradient(ellipse 80% 50% at 50% 120%, #1e1b4b, #0f172a)"
-            }
-            shimmerColor={isSuccess && !isPending ? "#10b981" : "#6366f1"}
+            className={`group mt-2 inline-flex w-full items-center justify-center gap-2 border-2 px-5 py-3 font-edit-mono text-[11px] uppercase tracking-widest transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+              isSuccess && !isPending
+                ? "border-emerald-800 bg-emerald-800 text-paper hover:bg-paper hover:text-emerald-800"
+                : "border-ink bg-ink text-cream hover:bg-paper hover:text-ink"
+            }`}
           >
-            {isPending
-              ? <><Loader2 className="h-4 w-4 animate-spin" />Calling…</>
-              : isSuccess
-                ? <><CheckCircle2 className="h-4 w-4 text-emerald-400" />Sync Delivered</>
-                : <><PhoneCall className="h-4 w-4" />Sync Now</>
-            }
-          </ShimmerButton>
+            {isPending ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" />Calling…</>
+            ) : isSuccess ? (
+              <><CheckCircle2 className="h-3.5 w-3.5" />Sync Delivered</>
+            ) : (
+              <>Initiate Briefing Call<ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" /></>
+            )}
+          </button>
 
           {selectedClient && (
-            <p className="text-center text-[10px] text-slate-600">
+            <p className="border-t border-ink/15 pt-3 text-center font-serif text-[11px] italic text-ink/50">
               <Mic className="mr-1 inline h-3 w-3" />
-              Hold the mic in the header to log notes via voice
+              Hold the microphone in the masthead to dictate a CRM action
             </p>
           )}
         </div>
-      </GlowCard>
+      </section>
 
+      {/* Briefing preview */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="border-white/[0.08] bg-[#0d1117] sm:max-w-[560px]">
+        <DialogContent className="rounded-none border-ink bg-paper sm:max-w-[560px]">
           <DialogHeader>
-            <DialogTitle className="text-xs font-semibold uppercase tracking-widest text-slate-400">Briefing Preview</DialogTitle>
-            <DialogDescription className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-200">
+            <DialogTitle className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/60">
+              § Briefing Preview
+            </DialogTitle>
+            <DialogDescription className="mt-3 whitespace-pre-wrap border-l-2 border-ink pl-4 font-serif text-base italic leading-relaxed text-ink/90">
               {previewText}
             </DialogDescription>
           </DialogHeader>
@@ -161,28 +178,42 @@ function ClientPreview({ summary, profile, onShowEmbed }: { summary: ClientProfi
   const cs = profile?.cross_sell[0];
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
-      <div className="flex items-start justify-between gap-2">
+    <div className="border border-ink/15 bg-ink/[0.015] p-3">
+      <div className="flex items-start justify-between gap-2 border-b border-ink/10 pb-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-semibold text-white">{scrub(summary.name, "name")}</span>
+            <span className="truncate font-serif text-base font-semibold text-ink">
+              {scrub(summary.name, "name")}
+            </span>
             <RiskPill score={summary.risk_score} />
           </div>
-          <p className="mt-0.5 truncate text-[11px] text-slate-500">{summary.occupation} · {summary.company}</p>
+          <p className="mt-0.5 truncate font-edit-mono text-[10px] text-ink/50">
+            {summary.occupation} · {summary.company}
+          </p>
         </div>
         {onShowEmbed && (
-          <button onClick={onShowEmbed} className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-slate-500 hover:bg-white/[0.06] hover:text-slate-300">
-            <PanelRightOpen className="h-3.5 w-3.5" />
+          <button
+            onClick={onShowEmbed}
+            className="flex h-7 w-7 shrink-0 items-center justify-center border border-ink/20 text-ink/60 hover:bg-ink hover:text-paper"
+            title="Open CRM contact view"
+          >
+            <PanelRightOpen className="h-3 w-3" />
           </button>
         )}
       </div>
       {profile && (
-        <div className="mt-2 space-y-1.5">
+        <div className="mt-2 space-y-0.5">
           <InfoRow label="Portfolio" value={formatProduct(prod)} />
           <InfoRow label="Last contact" value={`${profile.last_rm_interaction_days_ago} days ago`} />
-          <div className="flex items-start gap-2 rounded-md bg-white/[0.02] px-2.5 py-2 text-[11px]">
-            {open ? <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" /> : <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-400" />}
-            <span className="line-clamp-2 text-slate-400">{open ? `${open.category}: ${open.summary}` : (cs?.product ?? "No active complaint")}</span>
+          <div className="flex items-start gap-2 border-t border-ink/10 pt-2 mt-1.5 text-[11px]">
+            {open ? (
+              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-700" />
+            ) : (
+              <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-700" />
+            )}
+            <span className="line-clamp-2 font-serif italic text-ink/70">
+              {open ? `${open.category}: ${open.summary}` : (cs?.product ?? "No active complaint")}
+            </span>
           </div>
         </div>
       )}
@@ -192,9 +223,9 @@ function ClientPreview({ summary, profile, onShowEmbed }: { summary: ClientProfi
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-2 rounded-md bg-white/[0.02] px-2.5 py-1.5 text-[11px]">
-      <span className="text-slate-500">{label}</span>
-      <span className="truncate font-medium text-slate-300">{value}</span>
+    <div className="flex items-baseline justify-between gap-2 font-edit-mono text-[10px]">
+      <span className="uppercase tracking-widest text-ink/40">{label}</span>
+      <span className="truncate text-right text-ink/80">{value}</span>
     </div>
   );
 }
@@ -205,23 +236,30 @@ function RiskDot({ score }: { score: string }) {
 
 function RiskPill({ score }: { score: string }) {
   const { bg, text } = riskPillColor(score);
-  return <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${bg} ${text}`}>{score.replace("_", " ")}</span>;
+  return (
+    <span className={`border px-1.5 py-0.5 font-edit-mono text-[9px] font-bold uppercase tracking-widest ${bg} ${text}`}>
+      {score.replace("_", " ")}
+    </span>
+  );
 }
 
 function riskDotColor(score: string) {
-  const m: Record<string, string> = { very_low: "bg-emerald-500", low: "bg-blue-500", medium: "bg-amber-500", watch: "bg-orange-500", high: "bg-red-500" };
-  return m[score] ?? "bg-slate-500";
+  const m: Record<string, string> = {
+    very_low: "bg-emerald-700", low: "bg-blue-700",
+    medium: "bg-amber-600", watch: "bg-orange-700", high: "bg-red-700",
+  };
+  return m[score] ?? "bg-ink/40";
 }
 
 function riskPillColor(score: string): { bg: string; text: string } {
   const m: Record<string, { bg: string; text: string }> = {
-    very_low: { bg: "bg-emerald-500/15", text: "text-emerald-400" },
-    low:      { bg: "bg-blue-500/15",    text: "text-blue-400" },
-    medium:   { bg: "bg-amber-500/15",   text: "text-amber-400" },
-    watch:    { bg: "bg-orange-500/15",  text: "text-orange-400" },
-    high:     { bg: "bg-red-500/15",     text: "text-red-400" },
+    very_low: { bg: "border-emerald-700/40 bg-emerald-50", text: "text-emerald-800" },
+    low:      { bg: "border-blue-700/40 bg-blue-50",       text: "text-blue-800" },
+    medium:   { bg: "border-amber-600/40 bg-amber-50",     text: "text-amber-800" },
+    watch:    { bg: "border-orange-700/40 bg-orange-50",   text: "text-orange-800" },
+    high:     { bg: "border-red-700/40 bg-red-50",         text: "text-red-800" },
   };
-  return m[score] ?? { bg: "bg-slate-500/15", text: "text-slate-400" };
+  return m[score] ?? { bg: "border-ink/30 bg-ink/[0.02]", text: "text-ink/70" };
 }
 
 function formatProduct(p?: LoanProduct) {

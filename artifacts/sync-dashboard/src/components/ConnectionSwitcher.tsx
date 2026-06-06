@@ -1,6 +1,8 @@
+/**
+ * Editorial connection switcher — looks like a filing-cabinet selector.
+ */
 import { useEffect, useState } from "react";
 import { ChevronDown, Database, Plug } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -13,7 +15,7 @@ interface Connection { id: string; provider: string; label: string; status: stri
 
 export function ConnectionSwitcher() {
   const [connections, setConnections] = useState<Connection[]>([]);
-  const { connectionId, setConnectionId, isSandbox } = useConnection();
+  const { connectionId, setConnectionId } = useConnection();
   const [, navigate] = useLocation();
 
   useEffect(() => {
@@ -27,37 +29,39 @@ export function ConnectionSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm"
-          className="h-8 gap-2 border border-white/[0.06] bg-white/[0.03] text-slate-300 hover:bg-white/[0.06] hover:text-white text-xs">
+        <button className="inline-flex h-8 items-center gap-2 border border-ink/30 bg-paper px-2.5 font-edit-mono text-[10px] uppercase tracking-widest text-ink/80 transition-colors hover:bg-ink hover:text-cream">
           <Database className="h-3 w-3" />
-          <span className="hidden max-w-[100px] truncate sm:block text-[11px]">{activeLabel}</span>
-          <CRMSourceBadge provider={activeProvider} />
-          <ChevronDown className="h-3 w-3 text-slate-600" />
-        </Button>
+          <span className="hidden max-w-[110px] truncate sm:inline">{activeLabel}</span>
+          <CRMSourceBadge provider={activeProvider} className="hidden md:inline-flex" />
+          <ChevronDown className="h-3 w-3" />
+        </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-60 border-white/[0.08] bg-[#0d1117]">
-        <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-slate-600">
-          Switch CRM Source
+      <DropdownMenuContent align="end" className="w-64 rounded-none border-ink/30 bg-paper">
+        <DropdownMenuLabel className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
+          Switch Source
         </DropdownMenuLabel>
-        <DropdownMenuSeparator className="bg-white/[0.06]" />
+        <DropdownMenuSeparator className="bg-ink/15" />
         {connections.map(conn => (
           <DropdownMenuItem
             key={conn.id}
             onClick={() => setConnectionId(conn.id)}
-            className="flex items-center justify-between gap-3 text-slate-300 focus:bg-white/[0.05]"
+            className="flex items-center justify-between gap-3 focus:bg-ink/[0.05]"
           >
             <div className="flex min-w-0 flex-col">
-              <span className="truncate text-xs font-medium">{conn.label}</span>
-              <span className="text-[10px] capitalize text-slate-600">{conn.status}</span>
+              <span className="truncate font-serif text-sm text-ink">{conn.label}</span>
+              <span className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/40">{conn.status}</span>
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <CRMSourceBadge provider={conn.provider} />
-              {conn.id === connectionId && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+              {conn.id === connectionId && <span className="h-1.5 w-1.5 rounded-full bg-emerald-700" />}
             </div>
           </DropdownMenuItem>
         ))}
-        <DropdownMenuSeparator className="bg-white/[0.06]" />
-        <DropdownMenuItem onClick={() => navigate("/settings/integrations")} className="text-[11px] text-slate-500 focus:bg-white/[0.05] focus:text-slate-300">
+        <DropdownMenuSeparator className="bg-ink/15" />
+        <DropdownMenuItem
+          onClick={() => navigate("/settings/integrations")}
+          className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/60 focus:bg-ink/[0.05]"
+        >
           <Plug className="mr-2 h-3 w-3" />Manage integrations
         </DropdownMenuItem>
       </DropdownMenuContent>
