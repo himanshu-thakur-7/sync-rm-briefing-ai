@@ -78,10 +78,10 @@ If you see the 5 clients, the backend is healthy.
 
 1. Go to https://vercel.com/new
 2. Click **Import** next to the GitHub repo
-3. Vercel reads `vercel.json` at the repo root and auto-configures:
-   - **Build Command:** `pnpm --filter @workspace/sync-dashboard build`
-   - **Output Directory:** `artifacts/sync-dashboard/dist/public`
-   - **Install Command:** `pnpm install --frozen-lockfile`
+3. Vercel will auto-detect Vite and may set **Root Directory** to `artifacts/sync-dashboard` — that's fine, we ship a `vercel.json` for both layouts:
+   - Root Directory = `.` → uses repo-root `vercel.json`
+   - Root Directory = `artifacts/sync-dashboard` → uses the sub-folder `vercel.json` that `cd ../..`'s to install workspace deps
+   - **Don't touch** Build Command / Output Directory / Install Command in the wizard — let the file win
 4. Expand **Environment Variables** and add (replace with your Render URL):
 
    | Name | Value |
@@ -164,6 +164,35 @@ The voice command bar (post-meeting CRM actions) also uses the same key.
 - Vercel uses the same Linux x64 platform our pnpm overrides keep installed — should always work
 - If you see `ERR_PNPM_*`: ensure `pnpm-lock.yaml` is committed
 - Check the Build Logs in Vercel for the actual error
+
+### `Error: No Output Directory named "public" found after the Build completed`
+This happens when Vercel auto-detects the Vite project at `artifacts/sync-dashboard` and sets the Project's **Root Directory** there — which makes the repo-root `vercel.json` invisible.
+
+We ship a second `vercel.json` *inside* `artifacts/sync-dashboard/` to handle this case. Both layouts now work, but if you already created the project before this fix landed, you need to either redeploy or reset Build Settings.
+
+**Quickest fix — redeploy with the new config in place:**
+```bash
+git pull && git push    # make sure the new artifacts/sync-dashboard/vercel.json is on main
+```
+Then on Vercel: **Deployments → ⋯ on the latest deploy → Redeploy → uncheck "Use existing build cache" → Redeploy**.
+
+**If that still fails, reset the project's build settings:**
+1. Vercel → your project → **Settings → Build & Development Settings**
+2. For each of these, click the **OVERRIDE** toggle so it's **OFF** (greyed out — letting vercel.json win):
+   - Build Command
+   - Output Directory
+   - Install Command
+3. Save → **Deployments → Redeploy**
+
+**Nuclear option — delete and re-import:**
+1. Project → **Settings → bottom → Delete Project**
+2. https://vercel.com/new → import the repo
+3. **DO NOT touch** Root Directory, Build Command, Output Directory, or Install Command in the wizard
+4. Only fill in the four `VITE_*` env vars
+5. Click **Deploy**
+
+### Backend deploy fails on `sqlmodel`/`pydantic` install
+If pip resolves a bad combo, force the Python version: add env var `PYTHON_VERSION=3.11.9` in Render → restart deploy.
 
 ### Backend cold-starts are slow
 - Render free tier sleeps after 15 min of no traffic. First request after sleep wakes it in ~30s
