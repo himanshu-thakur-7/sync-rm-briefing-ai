@@ -1,18 +1,41 @@
+# Render Blueprint — backend only. Frontend is on Vercel.
+# Free tier: 512 MB RAM, sleeps after 15 min of inactivity (cold start ~30s).
+#
+# Deploy: push this repo to GitHub, then visit render.com → New → Blueprint
+# and point it at the repo. Render will read this file and provision the service.
+
 services:
   - type: web
     name: sync-backend
-    env: python
+    runtime: python
     plan: free
+    region: singapore                # closest to Indian users; change to oregon if you prefer
     buildCommand: "pip install -r artifacts/sync-backend/requirements.txt"
     startCommand: "cd artifacts/sync-backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /api/healthz
     envVars:
+      # ─── Required for the demo to boot ────────────────────────────
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: SECRET_KEY
+        generateValue: true          # Fernet key for OAuth token encryption
+      - key: WEBHOOK_SECRET
+        generateValue: true
+      - key: CRM_ADAPTER
+        value: mock                  # Sandbox is seeded automatically; UI lets you switch
+      - key: FRONTEND_URL
+        sync: false                  # Set to your Vercel URL after first frontend deploy
+      - key: BACKEND_URL
+        sync: false                  # Set to https://sync-backend.onrender.com after first deploy
+
+      # ─── Optional · only set the ones you actually want enabled ───
+      - key: OPENAI_API_KEY
+        sync: false
       - key: RINGG_API_KEY
         sync: false
       - key: RINGG_AGENT_ID
         sync: false
       - key: RINGG_FROM_NUMBER_ID
-        sync: false
-      - key: OPENAI_API_KEY
         sync: false
       - key: HUBSPOT_CLIENT_ID
         sync: false
@@ -42,30 +65,5 @@ services:
         sync: false
       - key: LEADSQUARED_SECRET_KEY
         sync: false
-      - key: SECRET_KEY
-        generateValue: true
-      - key: WEBHOOK_SECRET
-        generateValue: true
       - key: OAUTH_REDIRECT_BASE
-        value: "https://sync-backend.onrender.com"
-      - key: FRONTEND_URL
-        value: "https://sync-dashboard.vercel.app"
-      - key: BACKEND_URL
-        value: "https://sync-backend.onrender.com"
-      - key: CRM_ADAPTER
-        value: "mock"
-      - key: CORS_EXTRA_ORIGIN
-        value: "https://sync-dashboard.vercel.app"
-    rootDir: .
-
-  - type: web
-    name: sync-dashboard
-    env: static
-    buildCommand: "pnpm install && pnpm --filter @workspace/sync-dashboard build"
-    staticPublishPath: artifacts/sync-dashboard/dist
-    envVars:
-      - key: VITE_API_URL
-        value: "https://sync-backend.onrender.com"
-      - key: VITE_WS_URL
-        value: "wss://sync-backend.onrender.com"
-    rootDir: .
+        sync: false                  # set to https://sync-backend.onrender.com

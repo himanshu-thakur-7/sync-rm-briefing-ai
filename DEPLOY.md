@@ -1,0 +1,198 @@
+# Deploying SYNC — Free Tier
+
+The whole thing fits in two free tiers:
+
+| Layer | Where | Free quota |
+|---|---|---|
+| Backend (FastAPI + WebSocket) | **Render** Web Service | 750 hrs/month · 512 MB · sleeps after 15 min idle |
+| Frontend (Vite + React) | **Vercel** Static + CDN | 100 GB bandwidth · unlimited builds |
+
+Total cost: **₹0**. First cold start after sleep takes ~30 sec — fine for a demo.
+
+---
+
+## 0 · Pre-flight
+
+You'll need:
+- A **GitHub** account with this repo pushed up
+- A **Render** account (sign in with GitHub)
+- A **Vercel** account (sign in with GitHub)
+
+Make sure your local changes are committed and pushed:
+
+```bash
+cd /path/to/sync-rm-briefing-ai
+git status                       # confirm nothing important is uncommitted
+git add -A
+git commit -m "ready to deploy"
+git push origin main
+```
+
+> **Heads up:** Render free tier has *no* persistent disk. The SQLite database (`sync.db`) is re-created and seeded with the LeadSquared sandbox + 5 demo clients on every cold boot. That's intentional and fine for the demo. If you do real OAuth connects on the deployed instance, they'll be wiped on the next restart.
+
+---
+
+## 1 · Deploy the backend to Render
+
+### Option A — Blueprint (uses `render.yaml`, recommended)
+
+1. Go to https://dashboard.render.com → **New +** → **Blueprint**
+2. Connect the GitHub repo → click **Apply**
+3. Render reads `render.yaml` and provisions a service called **sync-backend**
+4. Wait 3–5 min for the build to finish
+5. Copy your backend URL (looks like `https://sync-backend.onrender.com`)
+
+### Option B — Manual web service
+
+If Blueprint isn't your style:
+
+1. Go to https://dashboard.render.com → **New +** → **Web Service**
+2. Connect the GitHub repo
+3. Fill in:
+   - **Name:** `sync-backend`
+   - **Region:** Singapore (best for India) or Oregon
+   - **Branch:** `main`
+   - **Root Directory:** *(leave blank)*
+   - **Runtime:** Python 3
+   - **Build Command:** `pip install -r artifacts/sync-backend/requirements.txt`
+   - **Start Command:** `cd artifacts/sync-backend && uvicorn main:app --host 0.0.0.0 --port $PORT`
+   - **Instance Type:** Free
+4. Click **Create Web Service**
+5. Once live, copy the URL (e.g. `https://sync-backend.onrender.com`)
+
+### After backend deploy — verify
+
+```bash
+curl https://sync-backend.onrender.com/api/healthz
+# → {"status":"ok"}
+
+curl https://sync-backend.onrender.com/api/v1/clients | head -c 200
+# → [{"client_id":"lsq_001","name":"Rahul Mehta", ...
+```
+
+If you see the 5 clients, the backend is healthy.
+
+---
+
+## 2 · Deploy the frontend to Vercel
+
+1. Go to https://vercel.com/new
+2. Click **Import** next to the GitHub repo
+3. Vercel reads `vercel.json` at the repo root and auto-configures:
+   - **Build Command:** `pnpm --filter @workspace/sync-dashboard build`
+   - **Output Directory:** `artifacts/sync-dashboard/dist/public`
+   - **Install Command:** `pnpm install --frozen-lockfile`
+4. Expand **Environment Variables** and add (replace with your Render URL):
+
+   | Name | Value |
+   |---|---|
+   | `VITE_API_URL`        | `https://sync-backend.onrender.com` |
+   | `VITE_WS_URL`         | `wss://sync-backend.onrender.com` |
+   | `VITE_DEMO_RM_NAME`   | `Himanshu` |
+   | `VITE_DEMO_RM_PHONE`  | `+91 98765 43210` |
+
+5. Click **Deploy**
+6. Wait 1–2 min. Copy the URL (e.g. `https://sync-rm-briefing-ai.vercel.app`)
+
+### After frontend deploy — verify
+
+Open the URL in a browser:
+- The landing page should render (cream paper + serif type)
+- Click **Open Dashboard** in the masthead — should navigate to `/dashboard`
+- The 5 LeadSquared sandbox clients should appear in the SyncPanel dropdown
+- If the WebSocket badge says **Live** in green, everything is wired correctly
+
+If clients don't load, check the browser DevTools Network tab — calls should hit `https://sync-backend.onrender.com/api/...`. If they hit `localhost:8000`, the env vars didn't apply — redeploy.
+
+---
+
+## 3 · Wire backend → frontend (CORS)
+
+The backend already accepts any `*.vercel.app` and `*.onrender.com` origin via regex, so this usually just works. But you should still set `FRONTEND_URL` so the OAuth callbacks redirect back to your dashboard:
+
+1. Render → **sync-backend** → **Environment**
+2. Edit (or add):
+   - `FRONTEND_URL` = `https://sync-rm-briefing-ai.vercel.app` (your Vercel URL)
+   - `BACKEND_URL` = `https://sync-backend.onrender.com` (your Render URL)
+   - `OAUTH_REDIRECT_BASE` = `https://sync-backend.onrender.com`
+3. Save → Render triggers an auto-redeploy (~2 min)
+
+---
+
+## 4 · (Optional) Enable a real CRM integration
+
+For the hackathon demo the FakeLeadSquared sandbox is enough. To connect a real HubSpot or Salesforce:
+
+### HubSpot
+
+1. Go to https://developers.hubspot.com → create an app
+2. **Auth → Redirect URLs:** add `https://sync-backend.onrender.com/api/v1/oauth/callback/hubspot`
+3. **Scopes:** `crm.objects.contacts.read crm.objects.contacts.write crm.objects.deals.read crm.objects.tickets.read crm.schemas.contacts.write`
+4. In Render, add env vars: `HUBSPOT_CLIENT_ID`, `HUBSPOT_CLIENT_SECRET`
+5. Save → redeploy
+6. Open the dashboard → **Manage Integrations** → **Connect HubSpot** → real OAuth dance
+
+### Salesforce / Zoho / Dynamics / Freshworks / LeadSquared
+
+Same pattern — see `README.md` for per-provider setup details.
+
+---
+
+## 5 · (Optional) Enable AI briefings + voice commands
+
+To use GPT-4o briefings instead of the template fallback:
+
+1. Render → env vars → add `OPENAI_API_KEY` (sk-…)
+2. Save → redeploy
+
+The voice command bar (post-meeting CRM actions) also uses the same key.
+
+---
+
+## 6 · Troubleshooting
+
+### "Failed to fetch" / CORS error in browser console
+- Check `FRONTEND_URL` in Render matches your Vercel URL exactly (no trailing slash)
+- Vercel preview URLs (like `sync-rm-briefing-ai-git-feature-yourname.vercel.app`) are allowed via the regex — production should always work
+- Hard-refresh the browser (Cmd+Shift+R) — Vite's HMR is local-only, prod is cached
+
+### Render service won't start
+- Check **Logs** in Render dashboard
+- Common cause: requirements.txt install timed out — click **Manual Deploy** to retry
+
+### Frontend builds locally but fails on Vercel
+- Vercel uses the same Linux x64 platform our pnpm overrides keep installed — should always work
+- If you see `ERR_PNPM_*`: ensure `pnpm-lock.yaml` is committed
+- Check the Build Logs in Vercel for the actual error
+
+### Backend cold-starts are slow
+- Render free tier sleeps after 15 min of no traffic. First request after sleep wakes it in ~30s
+- For a demo, hit any URL 30 seconds before your stage time to wake it up
+- Or upgrade to Render Starter ($7/mo) — no sleep
+
+### WebSocket badge stuck on "Offline"
+- Make sure `VITE_WS_URL` uses `wss://` (not `ws://`) for HTTPS deployments
+- Render supports WebSockets natively — no extra config needed
+- Check browser console for the actual error
+
+---
+
+## 7 · Update workflow
+
+After deploy is set up, any `git push origin main` triggers:
+- Render rebuilds the backend (~3 min)
+- Vercel rebuilds the frontend (~1 min)
+
+Both run automatically. Pull-request branches get preview URLs on Vercel.
+
+---
+
+## URLs cheatsheet
+
+```
+Production:
+  Landing:   https://<your-vercel-app>.vercel.app
+  Dashboard: https://<your-vercel-app>.vercel.app/dashboard
+  Backend:   https://<your-render-service>.onrender.com
+  API docs:  https://<your-render-service>.onrender.com/docs
+```
