@@ -60,16 +60,17 @@ async def sync_now(request: SyncRequest):
         )
     portfolio_summary = " | ".join(portfolio_parts) if portfolio_parts else "No active products"
 
-    hinglish_closers = [
-        "Kuch aur chahiye ya ready ho? Best of luck!",
-        "Chalo phir, meeting mein best of luck!",
-        "Aur kuch? Nahi? Perfect, jaao — go get 'em!",
+    friendly_closers = [
+        "That's the rundown — anything else before you head in? Good luck!",
+        "Alright, you're set. Go get 'em!",
+        "Anything else? No? Perfect — go run the meeting.",
     ]
     import hashlib
     h = int(hashlib.md5(client.profile.client_id.encode()).hexdigest(), 16)
-    hinglish_closer = hinglish_closers[h % len(hinglish_closers)]
+    friendly_closer = friendly_closers[h % len(friendly_closers)]
 
     custom_args = {
+        "company_name": settings.demo_company_name,
         "callee_name": request.rm_name,
         "client_name": client.profile.name,
         "client_age": str(client.profile.age),
@@ -82,7 +83,7 @@ async def sync_now(request: SyncRequest):
         "cross_sell_pitch": primary_cs.pitch_angle[:200] if primary_cs else "No specific pitch at this time",
         "cross_sell_product": primary_cs.product if primary_cs else "",
         "secondary_pitch": secondary_cs.pitch_angle[:150] if secondary_cs else "",
-        "hinglish_closer": hinglish_closer,
+        "friendly_closer": friendly_closer,
     }
 
     # 4. Initiate Ringg call

@@ -117,6 +117,17 @@ async def resolve_embed_url(connection_id: str, client_id: str, backend_url: str
             may_block_frame=True,
         )
 
+    if provider == "pipedrive":
+        from config import settings
+        domain = meta.get("company_domain") or settings.pipedrive_company_domain
+        url = f"https://{domain}.pipedrive.com/person/{client_id}" if domain else "#"
+        return EmbedSpec(
+            url=url,
+            provider="pipedrive",
+            label="Pipedrive",
+            may_block_frame=True,  # Pipedrive sets X-Frame-Options: DENY
+        )
+
     # Unknown provider — return a blank spec so the UI can show an "open in CRM" link
     return EmbedSpec(
         url="#",

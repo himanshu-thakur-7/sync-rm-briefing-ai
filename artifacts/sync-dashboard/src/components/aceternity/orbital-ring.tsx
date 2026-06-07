@@ -4,13 +4,15 @@
  */
 import { cn } from "@/lib/utils";
 
+// Evenly spaced — 360 / 7 ≈ 51.4°
 const PROVIDERS = [
-  { name: "HubSpot", color: "#ff7a59", angle: 0 },
-  { name: "Salesforce", color: "#00a1e0", angle: 60 },
-  { name: "Zoho", color: "#e74c3c", angle: 120 },
-  { name: "Dynamics", color: "#0078d4", angle: 180 },
-  { name: "Freshworks", color: "#10b981", angle: 240 },
-  { name: "LeadSquared", color: "#8b5cf6", angle: 300 },
+  { name: "Pipedrive",   color: "#017737", angle:   0 },
+  { name: "HubSpot",     color: "#ff7a59", angle:  51 },
+  { name: "Salesforce",  color: "#00a1e0", angle: 103 },
+  { name: "Zoho",        color: "#e74c3c", angle: 154 },
+  { name: "Dynamics",    color: "#0078d4", angle: 206 },
+  { name: "Freshworks",  color: "#10b981", angle: 257 },
+  { name: "LeadSquared", color: "#8b5cf6", angle: 309 },
 ];
 
 export function OrbitalRing({ className }: { className?: string }) {

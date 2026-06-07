@@ -65,6 +65,14 @@ PROVIDER_REGISTRY: dict[str, dict] = {
         "scopes": "",
         "configured": lambda: bool(settings.leadsquared_access_key and settings.leadsquared_secret_key),
     },
+    "pipedrive": {
+        "display_name": "Pipedrive",
+        "auth_method": "api_key",  # also supports OAuth 2.0; api_key is the demo path
+        "authorize_url": "https://oauth.pipedrive.com/oauth/authorize",
+        "token_url": "https://oauth.pipedrive.com/oauth/token",
+        "scopes": "deals:full contacts:full activities:full",
+        "configured": lambda: bool(settings.pipedrive_api_token and settings.pipedrive_company_domain),
+    },
     "fake_leadsquared": {
         "display_name": "LeadSquared (Sandbox)",
         "auth_method": "none",

@@ -1,7 +1,7 @@
 """
 LeadSquared CRM adapter.
 
-LeadSquared is the dominant CRM/LMS for Indian banks, NBFCs, and
+LeadSquared is a popular CRM/LMS for high-velocity sales teams in
 insurance companies. Authentication uses a static Access Key + Secret Key
 pair (no OAuth — LeadSquared uses HMAC-based API auth).
 

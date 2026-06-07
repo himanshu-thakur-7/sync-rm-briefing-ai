@@ -1,5 +1,5 @@
 """
-In-memory mock database with 5 richly detailed Indian bank clients.
+In-memory mock database with 5 richly detailed sample client profiles.
 """
 from datetime import date, timedelta
 from models import (
@@ -88,7 +88,7 @@ CLIENTS: dict[str, ClientFullProfile] = {
             name="Priya Sharma",
             age=34,
             occupation="Marketing Director",
-            company="Unilever India",
+            company="Unilever",
             city="Mumbai",
             risk_score="very_low",
         ),
@@ -227,7 +227,7 @@ CLIENTS: dict[str, ClientFullProfile] = {
             name="Sneha Reddy",
             age=29,
             occupation="Software Engineer",
-            company="Google India",
+            company="Google",
             city="Hyderabad",
             risk_score="very_low",
         ),

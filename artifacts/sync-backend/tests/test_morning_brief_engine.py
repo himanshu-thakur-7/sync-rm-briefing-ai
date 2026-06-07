@@ -30,7 +30,7 @@ async def test_generate_brief_payload_template_fallback():
     os.environ.pop("OPENAI_API_KEY", None)
     agenda = await morning_brief_engine.assemble_agenda("conn_lsq_sandbox", rm_name="Himanshu")
     payload = await morning_brief_engine.generate_brief_payload(
-        agenda, language_style="hinglish", company_name="Acme",
+        agenda, language_style="english_only", company_name="Acme",
     )
     # Required custom_args for the conversational agent
     for key in (
@@ -43,13 +43,13 @@ async def test_generate_brief_payload_template_fallback():
     assert payload["rm_name"] == "Himanshu"
     assert payload["company_name"] == "Acme"
     assert "Himanshu" in payload["opening_line"]
-    # Hinglish style → Hindi closer
-    assert "shubh" in payload["closer"].lower()
+    # English-only by default — closer is a plain greeting, no Hindi
+    assert "great" in payload["closer"].lower()
 
 
 @pytest.mark.asyncio
-async def test_payload_english_only_drops_hinglish():
-    """language_style=english_only suppresses Hinglish phrases."""
+async def test_payload_english_only_is_clean():
+    """language_style=english_only produces only English copy."""
     import os
     os.environ.pop("OPENAI_API_KEY", None)
     agenda = await morning_brief_engine.assemble_agenda("conn_lsq_sandbox", rm_name="Sarah")
@@ -57,4 +57,5 @@ async def test_payload_english_only_drops_hinglish():
         agenda, language_style="english_only", company_name="Northwind",
     )
     assert "shubh" not in payload["closer"].lower()
+    assert "chalo" not in payload["opening_line"].lower()
     assert "great" in payload["closer"].lower()

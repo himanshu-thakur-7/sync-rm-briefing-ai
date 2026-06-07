@@ -305,7 +305,7 @@ function CreateScheduleDialog({
   const [weekdayMask, setWeekdayMask] = useState(31);
   const [tz, setTz] = useState("Asia/Kolkata");
   const [company, setCompany] = useState("Acme");
-  const [language, setLanguage] = useState("hinglish");
+  const [language, setLanguage] = useState("english_only");
   const [submitting, setSubmitting] = useState(false);
 
   const toggleDay = (i: number) => setWeekdayMask(m => m ^ (1 << i));
@@ -425,9 +425,8 @@ function CreateScheduleDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-none border-ink/30 bg-paper">
-                <SelectItem value="hinglish">Hinglish (default)</SelectItem>
-                <SelectItem value="english_only">English only</SelectItem>
-                <SelectItem value="auto">Auto (match the RM)</SelectItem>
+                <SelectItem value="english_only">English only (default)</SelectItem>
+                <SelectItem value="auto">Auto (mirror the RM's tone)</SelectItem>
               </SelectContent>
             </Select>
           </div>

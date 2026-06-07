@@ -10,6 +10,7 @@ const PROVIDER_META: Record<string, { label: string; dot: string }> = {
   zoho:             { label: "Zoho",         dot: "#E74C3C" },
   dynamics:         { label: "Dynamics",     dot: "#0078D4" },
   freshworks:       { label: "Freshworks",   dot: "#10B981" },
+  pipedrive:        { label: "Pipedrive",    dot: "#017737" },
   leadsquared:      { label: "LeadSquared",  dot: "#8B5CF6" },
   fake_leadsquared: { label: "LSQ Sandbox",  dot: "#B58A2D" },
   mock:             { label: "Demo",         dot: "#737373" },

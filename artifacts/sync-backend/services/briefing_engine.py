@@ -18,7 +18,7 @@ Rules:
 1. Sound like a sharp colleague, NOT a report. Narrate, don't list.
 2. Order: Identity → Portfolio → Risk flags → Relationship gap → The play
 3. If risk is HIGH or WATCH, or there's an open complaint, mention it clearly
-4. Include 1-2 natural Hinglish phrases (e.g., "EMI time pe aa raha hai", "kuch aur chahiye?")
+4. Use natural conversational phrases ("so here's the thing", "honestly", "look") — clean professional English
 5. End with the cross-sell recommendation tied to the client's LIFE context, not just product eligibility
 6. Keep under 120 words (maps to ~45 seconds of speech)
 7. Use contractions, filler phrases ("so here's the thing", "honestly", "look")
@@ -28,7 +28,7 @@ Rules:
 
 
 def _format_rupees(amount: float) -> str:
-    """Format amount in Indian rupee shorthand."""
+    """Format amount in rupee shorthand (₹L for lakhs, ₹Cr for crores)."""
     if amount >= 10000000:
         return f"₹{amount/10000000:.1f}Cr"
     elif amount >= 100000:
@@ -87,7 +87,7 @@ def _template_briefing(client: ClientFullProfile) -> str:
         cs = cross_sell[0]
         lines.append(f"Here's your play: {cs.pitch_angle[:120]}")
 
-    lines.append("That's the quick sync. Kuch aur chahiye, ya ready ho?")
+    lines.append("That's the quick sync. Anything else, or are you good to walk in?")
 
     return " ".join(lines)
 
@@ -104,13 +104,13 @@ Rules:
 2. ALWAYS open with an honest disclaimer: it's an AI assistant + the call may be recorded.
 3. Be warm, respectful, never alarmist. For risk/NPA cases, LEAD WITH SAVINGS or help,
    never "your account is in trouble".
-4. Code-switch to natural Hinglish where it fits.
+4. Stay in clean professional English; warm but never casual to the point of cheesy.
 5. Never fabricate numbers — only use what's in the talking points.
 6. Keep the opening_line under 25 words.
 
 Return ONLY a JSON object with these keys:
   opening_line, key_points (array of 3 short strings), offer (one sentence),
-  warm_transfer_trigger (when to offer the RM), hinglish_closer (one short line).
+  warm_transfer_trigger (when to offer the RM), friendly_closer (one short line).
 """
 
 
@@ -134,7 +134,7 @@ async def generate_outreach_brief(client: ClientFullProfile, play: dict) -> dict
             "key_points": points or [play.get("objective", "A quick check-in about your account.")],
             "offer": play.get("objective", "We'd like to help with your account."),
             "warm_transfer_trigger": f"If they want specifics or to discuss numbers, offer to connect them to {rm_name}.",
-            "hinglish_closer": "Bas itna hi tha — koi baat ho toh hum yahin hain. Aapka din shubh ho!",
+            "friendly_closer": "That's all from us — we're here whenever you need us. Have a great day.",
         }
 
     openai_key = os.environ.get("OPENAI_API_KEY", "")

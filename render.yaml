@@ -73,5 +73,13 @@ services:
         sync: false
       - key: LEADSQUARED_SECRET_KEY
         sync: false
+      - key: PIPEDRIVE_API_TOKEN
+        sync: false                  # Personal API token from Pipedrive → Settings
+      - key: PIPEDRIVE_COMPANY_DOMAIN
+        sync: false                  # e.g. "acmedemo" → acmedemo.pipedrive.com
+      - key: PIPEDRIVE_CLIENT_ID
+        sync: false                  # Optional, only for OAuth flow
+      - key: PIPEDRIVE_CLIENT_SECRET
+        sync: false
       - key: OAUTH_REDIRECT_BASE
         sync: false                  # set to https://sync-backend.onrender.com

@@ -1,4 +1,11 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings
+
+# Look for .env files at: backend folder → repo root. Repo root wins (loaded last)
+# so the user's canonical .env always takes precedence over any stale per-folder one.
+_BACKEND_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _BACKEND_DIR.parent.parent
+_ENV_FILES = tuple(str(p) for p in (_BACKEND_DIR / ".env", _REPO_ROOT / ".env") if p.exists())
 
 
 class Settings(BaseSettings):
@@ -55,6 +62,11 @@ class Settings(BaseSettings):
     leadsquared_access_key: str = ""
     leadsquared_secret_key: str = ""
     leadsquared_region: str = "api-in21"
+    # Pipedrive (R4 — primary demo CRM)
+    pipedrive_client_id: str = ""
+    pipedrive_client_secret: str = ""
+    pipedrive_api_token: str = ""       # Personal API token, fast-path auth
+    pipedrive_company_domain: str = ""  # e.g. "acmedemo" → acmedemo.pipedrive.com
 
     # Demo defaults
     demo_rm_phone: str = "+919876543210"
@@ -68,7 +80,7 @@ class Settings(BaseSettings):
     demo_client_phone: str = "+919876543210"
 
     class Config:
-        env_file = ".env"
+        env_file = _ENV_FILES or (".env",)
         extra = "ignore"
 
 

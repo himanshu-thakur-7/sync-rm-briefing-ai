@@ -18,7 +18,7 @@ import { DataTable } from "@/components/editorial/data-table";
 import { HandwrittenArrow } from "@/components/editorial/handwritten-arrow";
 
 const CRMS = [
-  "HubSpot", "Salesforce", "Zoho CRM",
+  "Pipedrive", "HubSpot", "Salesforce", "Zoho CRM",
   "Microsoft Dynamics 365", "Freshworks", "LeadSquared",
 ];
 
@@ -127,7 +127,7 @@ function Masthead({ onCta }: { onCta: () => void }) {
               Established · 2025 · Bengaluru
             </p>
             <p className="mt-1 font-serif text-base italic text-ink/80">
-              The voice-AI co-pilot for the Indian Relationship Manager.
+              The voice-AI co-pilot for the Relationship Manager.
             </p>
           </div>
         </div>
@@ -235,7 +235,7 @@ function OpeningEssay() {
           </p>
 
           <Marginalia number="i">
-            Sync sits <em>on top of</em> HubSpot, Salesforce, Zoho, Dynamics, Freshworks
+            Sync sits <em>on top of</em> Pipedrive, HubSpot, Salesforce, Zoho, Dynamics, Freshworks
             or LeadSquared — not in place of any of them.
           </Marginalia>
 
@@ -318,7 +318,7 @@ function TranscriptDemo() {
               SYNC →
             </p>
             <p className="mt-2 font-serif text-xl italic leading-snug text-ink/60 md:text-2xl">
-              "Kuch aur chahiye ya ready ho?"
+              "That's it — anything else, or are you set?"
             </p>
           </div>
         </div>
@@ -361,12 +361,13 @@ function IntegrationsSection({ onCta }: { onCta: () => void }) {
         <div className="md:col-span-8">
           <div className="grid grid-cols-1 divide-y divide-ink/15 border-y border-ink/15 sm:grid-cols-2 sm:divide-y-0 sm:[&>*:nth-child(even)]:border-l sm:[&>*:nth-child(even)]:border-ink/15 sm:[&>*:nth-child(n+3)]:border-t sm:[&>*:nth-child(n+3)]:border-ink/15">
             {[
+              { name: "Pipedrive", auth: "API token or OAuth", note: "Persons, Deals, Activities. Custom fields auto-keyed. Notes + Tasks writeback." },
               { name: "HubSpot", auth: "OAuth 2.0", note: "Properties API auto-provisions 9 contact + deal fields. Notes + Task writeback." },
               { name: "Salesforce", auth: "OAuth 2.0", note: "Custom fields delivered as a metadata package.xml. Task writeback. SOQL-injection-safe queries." },
-              { name: "Zoho CRM", auth: "OAuth 2.0", note: "Contacts, Deals, Cases, Tasks. India region by default. Note writeback." },
+              { name: "Zoho CRM", auth: "OAuth 2.0", note: "Contacts, Deals, Cases, Tasks. Multi-region (configurable). Note writeback." },
               { name: "Microsoft Dynamics 365", auth: "Azure AD OAuth", note: "OData v9 endpoints. Annotation writeback. sync_* custom fields." },
               { name: "Freshworks (Freshsales)", auth: "API key", note: "Contacts, Deals, Notes. cf_* custom fields. Note writeback." },
-              { name: "LeadSquared", auth: "Access + Secret key", note: "Lead, Activity, Custom Object. Dominant across Indian sales-led businesses." },
+              { name: "LeadSquared", auth: "Access + Secret key", note: "Lead, Activity, Custom Object. Strong fit for high-velocity sales teams." },
             ].map((crm) => (
               <div key={crm.name} className="px-6 py-5">
                 <div className="flex items-baseline justify-between">
@@ -514,7 +515,7 @@ function SpecsSection() {
 
         <div className="md:col-span-8 grid grid-cols-1 gap-x-12 gap-y-6 sm:grid-cols-2">
           {[
-            { label: "Voice", body: "Ringg AI · outbound + inbound · 13 custom variables · Hinglish code-switch" },
+            { label: "Voice", body: "Ringg AI · outbound + inbound · 13 custom variables · natural conversational tone" },
             { label: "Briefing AI", body: "OpenAI GPT-4o · template fallback when offline" },
             { label: "Voice Commands", body: "Whisper STT · GPT-4o function calling · 8-tool schema" },
             { label: "Backend", body: "Python 3.11 · FastAPI · SQLModel · aiosqlite · Authlib · httpx · tenacity" },

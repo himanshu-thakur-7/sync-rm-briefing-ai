@@ -28,7 +28,7 @@
     "EmailAddress": "priya.sharma@unilever.com",
     "Phone": "+919845002002",
     "JobTitle": "Marketing Director",
-    "Company": "Unilever India",
+    "Company": "Unilever",
     "City": "Mumbai",
     "Fields": [
       {"SchemaName": "mx_Risk_Score", "Value": "very_low"},
@@ -69,7 +69,7 @@
     "EmailAddress": "sneha.reddy@google.com",
     "Phone": "+919845004004",
     "JobTitle": "Software Engineer",
-    "Company": "Google India",
+    "Company": "Google",
     "City": "Hyderabad",
     "Fields": [
       {"SchemaName": "mx_Risk_Score", "Value": "very_low"},

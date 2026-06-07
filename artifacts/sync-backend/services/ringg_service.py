@@ -18,21 +18,71 @@ class RinggService:
     """Client for the Ringg AI voice platform API."""
 
     BASE_URL = settings.ringg_base_url
-
+    def _client(self, timeout: int = 30) -> httpx.AsyncClient:
+        """Create an AsyncClient that follows redirects (Ringg may send 307)."""
+        return httpx.AsyncClient(timeout=timeout, follow_redirects=True)
+    def _log_and_raise(self, resp: httpx.Response) -> None:
+        """Log response body for non-2xx responses, then raise HTTPStatusError."""
+        if resp.is_error:
+            try:
+                body = resp.json()
+            except Exception:
+                body = resp.text
+            logger.error("Ringg API error %s %s: %s", resp.status_code, resp.url, body)
+            resp.raise_for_status()
     async def create_agent(self, config: dict) -> str:
         """
         POST /public/agent — Create the SYNC assistant.
         Returns agent_id.
         """
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with self._client(timeout=30) as client:
             resp = await client.post(
                 f"{self.BASE_URL}/public/agent",
                 json=config,
                 headers=RINGG_HEADERS,
             )
-            resp.raise_for_status()
-            data = resp.json()
-            agent_id = data.get("agent_id") or data.get("id") or data.get("agentId", "")
+            self._log_and_raise(resp)
+            # Parse body safely — Ringg may return different envelopes.
+            try:
+                data = resp.json()
+            except Exception:
+                data = None
+
+            agent_id = ""
+
+            def _find_id(d):
+                if not d:
+                    return None
+                if isinstance(d, dict):
+                    for k in ("agent_id", "agentId", "id", "_id"):
+                        v = d.get(k)
+                        if v:
+                            return v
+                    # common envelope keys
+                    for key in ("data", "agent", "result"):
+                        if key in d:
+                            found = _find_id(d[key])
+                            if found:
+                                return found
+                    # if dict maps ids to objects, take first key
+                    for k, v in d.items():
+                        if isinstance(k, str) and len(k) > 8 and (isinstance(v, dict) or isinstance(v, str)):
+                            # treat key as id candidate
+                            return k
+                return None
+
+            agent_id = _find_id(data) or ""
+
+            # Fallback: Location header sometimes contains the created resource URL
+            if not agent_id:
+                loc = resp.headers.get("Location") or resp.headers.get("location")
+                if loc:
+                    agent_id = loc.rstrip("/").split("/")[-1]
+
+            if not agent_id:
+                # Log full response body for debugging (already logged on error, but helpful)
+                logger.warning("Could not parse agent id from Ringg response: %s", data or resp.text)
+
             logger.info(f"Created Ringg agent: {agent_id}")
             return agent_id
 
@@ -40,13 +90,13 @@ class RinggService:
         """
         GET /agent/voices?language=en-IN — Get available voice options.
         """
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with self._client(timeout=15) as client:
             resp = await client.get(
                 f"{self.BASE_URL}/agent/voices",
                 params={"language": language},
                 headers=RINGG_HEADERS,
             )
-            resp.raise_for_status()
+            self._log_and_raise(resp)
             return resp.json()
 
     async def initiate_call(
@@ -75,15 +125,18 @@ class RinggService:
             "custom_args_values": custom_args,
             "callback_url": callback_url,
         }
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with self._client(timeout=30) as client:
             resp = await client.post(
                 f"{self.BASE_URL}/calling/outbound/individual",
                 json=payload,
                 headers=RINGG_HEADERS,
             )
-            resp.raise_for_status()
+            self._log_and_raise(resp)
             data = resp.json()
-            call_id = data.get("call_id") or data.get("id") or data.get("callId", "")
+            # Ringg wraps the response in {"status": "success", "data": {...}}
+            envelope = data.get("data") if isinstance(data, dict) else None
+            payload = envelope if isinstance(envelope, dict) else data
+            call_id = (payload.get("call_id") or payload.get("id") or payload.get("callId", "")) if isinstance(payload, dict) else ""
             logger.info(f"Initiated Ringg call: {call_id}")
             return call_id
 
@@ -125,15 +178,18 @@ class RinggService:
             # Best-effort: Ringg supports call transfer config; exact key may vary
             # by workspace. We pass it both ways so whichever the API honours works.
             payload["transfer_number"] = transfer_to_number
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with self._client(timeout=30) as client:
             resp = await client.post(
                 f"{self.BASE_URL}/calling/outbound/individual",
                 json=payload,
                 headers=RINGG_HEADERS,
             )
-            resp.raise_for_status()
+            self._log_and_raise(resp)
             data = resp.json()
-            call_id = data.get("call_id") or data.get("id") or data.get("callId", "")
+            # Ringg wraps the response in {"status": "success", "data": {...}}
+            envelope = data.get("data") if isinstance(data, dict) else None
+            payload = envelope if isinstance(envelope, dict) else data
+            call_id = (payload.get("call_id") or payload.get("id") or payload.get("callId", "")) if isinstance(payload, dict) else ""
             logger.info(f"Initiated Ringg outreach call: {call_id}")
             return call_id
 
@@ -175,26 +231,29 @@ class RinggService:
             payload["function_endpoint"] = mid_call_tool_url
             payload["custom_args_values"]["mid_call_tool_url"] = mid_call_tool_url
 
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with self._client(timeout=30) as client:
             resp = await client.post(
                 f"{self.BASE_URL}/calling/outbound/individual",
                 json=payload,
                 headers=RINGG_HEADERS,
             )
-            resp.raise_for_status()
+            self._log_and_raise(resp)
             data = resp.json()
-            call_id = data.get("call_id") or data.get("id") or data.get("callId", "")
+            # Ringg wraps the response in {"status": "success", "data": {...}}
+            envelope = data.get("data") if isinstance(data, dict) else None
+            payload = envelope if isinstance(envelope, dict) else data
+            call_id = (payload.get("call_id") or payload.get("id") or payload.get("callId", "")) if isinstance(payload, dict) else ""
             logger.info(f"Initiated Ringg morning brief call: {call_id}")
             return call_id
 
     async def get_call_details(self, call_id: str) -> dict:
         """GET /calling/history/{call_id}"""
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with self._client(timeout=15) as client:
             resp = await client.get(
                 f"{self.BASE_URL}/calling/history/{call_id}",
                 headers=RINGG_HEADERS,
             )
-            resp.raise_for_status()
+            self._log_and_raise(resp)
             return resp.json()
 
     async def upload_knowledge_base(self, name: str, content: str) -> str:
@@ -203,24 +262,56 @@ class RinggService:
         For inbound mode: agent uses KB to look up clients.
         Returns kb_id.
         """
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with self._client(timeout=60) as client:
             resp = await client.post(
                 f"{self.BASE_URL}/kb",
                 json={"name": name, "content": content},
                 headers=RINGG_HEADERS,
             )
-            resp.raise_for_status()
+            self._log_and_raise(resp)
             data = resp.json()
             kb_id = data.get("kb_id") or data.get("id", "")
             logger.info(f"Uploaded knowledge base: {kb_id}")
             return kb_id
 
-    async def setup_webhooks(self, agent_id: str, callback_url: str) -> None:
+    async def attach_from_number(self, agent_id: str, from_number_id: str) -> bool:
+        """
+        PATCH /agent/v1 (operation=edit_outbound_from_number_ids).
+        Ringg requires the from_number to be EXPLICITLY ATTACHED to the agent's
+        active version; passing it per call isn't enough. Without this the agent
+        accepts the call payload (200 OK) but never actually dials.
+        """
+        if not from_number_id:
+            return False
+        payload = {
+            "operation": "edit_outbound_from_number_ids",
+            "agent_id": agent_id,
+            "outbound_from_number_ids": [from_number_id],
+        }
+        async with self._client(timeout=15) as client:
+            try:
+                resp = await client.patch(
+                    f"{self.BASE_URL}/agent/v1/",
+                    json=payload, headers=RINGG_HEADERS,
+                )
+                if 200 <= resp.status_code < 300:
+                    logger.info(f"Attached from-number {from_number_id} to agent {agent_id}")
+                    return True
+                logger.warning(
+                    "Failed to attach from-number to %s: %s %s",
+                    agent_id, resp.status_code,
+                    resp.text[:200],
+                )
+            except Exception as e:
+                logger.warning("attach_from_number error for %s: %s", agent_id, e)
+        return False
+
+    async def setup_webhooks(self, agent_id: str, callback_url: str) -> bool:
         """
         PATCH /agent/v1 — Subscribe to call events.
         Subscribes to: call_completed, platform_analysis_completed, all_processing_completed
         """
-        payload = {
+        base = {
             "agent_id": agent_id,
             "webhook_url": callback_url,
             "webhook_events": [
@@ -230,14 +321,51 @@ class RinggService:
                 "all_processing_completed",
             ],
         }
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.patch(
-                f"{self.BASE_URL}/agent/v1",
-                json=payload,
-                headers=RINGG_HEADERS,
-            )
-            resp.raise_for_status()
-            logger.info(f"Webhooks configured for agent {agent_id}")
+
+        # Try several payload shapes the Ringg API may expect.
+        candidates = [
+            base,
+            {"operation": "subscribe", **base},
+            {"operation": "update", **base},
+            {"agent_id": agent_id, "operations": [{"operation": "subscribe", "webhook_url": callback_url, "events": base["webhook_events"]}]},
+            {"agent_id": agent_id, "webhook": {"url": callback_url, "events": base["webhook_events"]}},
+        ]
+
+        last_resp = None
+        async with self._client(timeout=15) as client:
+            for payload in candidates:
+                try:
+                    resp = await client.patch(
+                        f"{self.BASE_URL}/agent/v1",
+                        json=payload,
+                        headers=RINGG_HEADERS,
+                    )
+                except Exception as exc:
+                    logger.debug("Webhook attempt exception: %s", exc)
+                    last_resp = None
+                    continue
+
+                last_resp = resp
+                if resp.status_code >= 200 and resp.status_code < 300:
+                    logger.info(f"Webhooks configured for agent {agent_id} (payload: %s)", payload)
+                    return True
+                # Try next candidate
+                try:
+                    body = resp.json()
+                except Exception:
+                    body = resp.text
+                logger.debug("Webhook attempt failed (%s): %s", resp.status_code, body)
+
+        # If we reach here none of the payloads worked — log and continue.
+        if last_resp is not None:
+            try:
+                body = last_resp.json()
+            except Exception:
+                body = last_resp.text
+            logger.warning("Failed to configure Ringg webhooks for %s: %s %s", agent_id, last_resp.status_code, body)
+        else:
+            logger.warning("Failed to configure Ringg webhooks for %s: no response", agent_id)
+        return False
 
 
 ringg_service = RinggService()

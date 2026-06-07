@@ -120,6 +120,6 @@ async def get_ringg_agent_config():
             "callee_name", "client_name", "client_age", "client_occupation",
             "portfolio_summary", "risk_level", "risk_factors", "days_since_contact",
             "open_complaints", "cross_sell_pitch", "cross_sell_product",
-            "secondary_pitch", "hinglish_closer",
+            "secondary_pitch", "friendly_closer",
         ],
     }

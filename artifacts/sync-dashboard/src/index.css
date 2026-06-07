@@ -54,6 +54,17 @@
 .hover\:bg-ink:hover { background-color: var(--color-ink); }
 .hover\:text-ink:hover { color: var(--color-ink); }
 .hover\:border-ink:hover { border-color: var(--color-ink); }
+/* Hover variants for the warm parchment palette — Tailwind doesn't auto-generate
+   these for manually-written utilities, so every button using `hover:bg-paper`
+   / `hover:text-paper` (the "inverse on hover" pattern across the editorial UI)
+   needs them spelled out here. */
+.text-paper { color: var(--color-paper); }
+.bg-paper-2 { background-color: var(--color-paper-2); }
+.border-paper { border-color: var(--color-paper); }
+.hover\:bg-paper:hover { background-color: var(--color-paper); }
+.hover\:bg-paper-2:hover { background-color: var(--color-paper-2); }
+.hover\:text-paper:hover { color: var(--color-paper); }
+.hover\:border-paper:hover { border-color: var(--color-paper); }
 .border-ink { border-color: var(--color-ink); }
 .border-ink\/15 { border-color: var(--color-rule); }
 .border-ink\/10 { border-color: rgba(11,11,10,0.1); }

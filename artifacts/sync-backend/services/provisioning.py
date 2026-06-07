@@ -164,11 +164,38 @@ LEADSQUARED_FIELD_SPECS: list[FieldSpec] = [
     FieldSpec("dob", "lead", "mx_DOB", "date", required_for=["get_client"]),
 ]
 
+PIPEDRIVE_FIELD_SPECS: list[FieldSpec] = [
+    # Pipedrive person custom fields. crm_name = the LABEL shown in Pipedrive
+    # UI; the adapter resolves these to 40-char hex keys via /personFields.
+    FieldSpec("risk_score", "person", "Risk Score", "enum",
+              options=["very_low", "low", "medium", "watch", "high"],
+              required_for=["get_risk"]),
+    FieldSpec("risk_factors", "person", "Risk Factors", "text", required_for=["get_risk"]),
+    FieldSpec("last_rm_interaction_date", "person", "Last RM Interaction Date", "date",
+              required_for=["log_briefing"]),
+    FieldSpec("cross_sell_product_1", "person", "Cross-Sell Product 1", "text", required_for=["get_cross_sell"]),
+    FieldSpec("cross_sell_pitch_1", "person", "Cross-Sell Pitch 1", "text", required_for=["get_cross_sell"]),
+    FieldSpec("cross_sell_value_1", "person", "Cross-Sell Value 1", "number", required_for=["get_cross_sell"]),
+    FieldSpec("cross_sell_product_2", "person", "Cross-Sell Product 2", "text", required_for=["get_cross_sell"]),
+    FieldSpec("cross_sell_pitch_2", "person", "Cross-Sell Pitch 2", "text", required_for=["get_cross_sell"]),
+    FieldSpec("cross_sell_value_2", "person", "Cross-Sell Value 2", "number", required_for=["get_cross_sell"]),
+    # Deal custom fields (loans)
+    FieldSpec("product_type", "deal", "Product Type", "enum",
+              options=["home_loan", "personal_loan", "business_loan", "car_loan", "credit_card", "fd"],
+              required_for=["get_portfolio"]),
+    FieldSpec("emi_amount", "deal", "EMI Amount", "number", required_for=["get_portfolio"]),
+    FieldSpec("months_paid", "deal", "Months Paid", "number", required_for=["get_portfolio"]),
+    FieldSpec("tenure_months", "deal", "Tenure Months", "number", required_for=["get_portfolio"]),
+    FieldSpec("next_due_date", "deal", "Next Due Date", "date", required_for=["get_portfolio"]),
+    FieldSpec("payment_history", "deal", "Payment History", "text", required_for=["get_portfolio"]),
+]
+
 PROVIDER_SPECS: dict[str, list[FieldSpec]] = {
     "hubspot": HUBSPOT_FIELD_SPECS,
     "salesforce": SALESFORCE_FIELD_SPECS,
     "zoho": ZOHO_FIELD_SPECS,
     "dynamics": DYNAMICS_FIELD_SPECS,
+    "pipedrive": PIPEDRIVE_FIELD_SPECS,
     "freshworks": FRESHWORKS_FIELD_SPECS,
     "leadsquared": LEADSQUARED_FIELD_SPECS,
     "fake_leadsquared": LEADSQUARED_FIELD_SPECS,

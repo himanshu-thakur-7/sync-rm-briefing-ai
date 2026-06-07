@@ -174,7 +174,7 @@ class MorningBriefSchedule(SQLModel, table=True):
     weekday_mask: int = 31  # bit 0=Mon ... bit 6=Sun; 31 = Mon-Fri
     timezone: str = "Asia/Kolkata"  # IANA name
     company_name: str = "Acme"
-    language_style: str = "hinglish"  # auto | english_only | hinglish
+    language_style: str = "english_only"  # english_only | auto
     enabled: bool = True
     last_called_at: Optional[datetime] = None
     next_call_at: Optional[datetime] = None

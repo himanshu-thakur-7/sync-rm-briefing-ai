@@ -45,7 +45,7 @@ class ScheduleIn(BaseModel):
     weekday_mask: int = 31
     timezone: str = "Asia/Kolkata"
     company_name: str = "Acme"
-    language_style: str = "hinglish"
+    language_style: str = "english_only"
     enabled: bool = True
 
 

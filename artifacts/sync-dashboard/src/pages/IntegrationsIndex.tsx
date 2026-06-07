@@ -20,17 +20,18 @@ interface Provider {
 }
 
 const PROVIDER_ORDER = [
-  "fake_leadsquared", "hubspot", "salesforce", "zoho",
-  "dynamics", "freshworks", "leadsquared", "mock",
+  "pipedrive", "fake_leadsquared", "hubspot", "salesforce",
+  "zoho", "dynamics", "freshworks", "leadsquared", "mock",
 ];
 
 const PROVIDER_DESC: Record<string, string> = {
   hubspot:         "OAuth 2.0 · Properties API for auto-provisioning · Note + Task writeback",
   salesforce:      "OAuth 2.0 · package.xml delivery · SOQL-injection safe queries",
-  zoho:            "OAuth 2.0 · India region by default · Contacts, Deals, Cases, Tasks",
+  zoho:            "OAuth 2.0 · Multi-region (configurable) · Contacts, Deals, Cases, Tasks",
   dynamics:        "Azure AD OAuth · OData v9 · sync_* custom fields · Annotation writeback",
   freshworks:      "API key · Contacts, Deals, Notes · cf_* custom fields",
-  leadsquared:     "Access + Secret key · Dominant in Indian NBFC + banking · Real LSQ adapter",
+  pipedrive:       "Personal API token or OAuth · Persons, Deals, Activities · Custom fields auto-keyed",
+  leadsquared:     "Access + Secret key · Strong fit for high-velocity sales teams · Real LSQ adapter",
   fake_leadsquared:"Sandbox — same code path as real LeadSquared, in-process MockTransport",
   mock:            "Legacy in-memory dataset — left in for back-compat",
 };

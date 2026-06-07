@@ -188,15 +188,13 @@ def _format_list(items: list[AgendaItem], max_n: int = 5) -> str:
 
 def _template_payload(agenda: Agenda, language_style: str, company_name: str) -> dict:
     first = agenda.rm_name.split()[0] if agenda.rm_name else "there"
-    hinglish = language_style in ("hinglish", "auto")
+    # Default language style is english_only; "auto" mirrors the RM's tone.
     opening = (
-        f"Good morning {first} — {agenda.headline.lower() if agenda.headline else 'a quiet day on your book today'}."
-        + (" Ready for the rundown?" if not hinglish else " Chalo, ready for the rundown?")
+        f"Good morning {first} — "
+        f"{agenda.headline.lower() if agenda.headline else 'a quiet day on your book today'}."
+        " Ready for the rundown?"
     )
-    closer = (
-        "That's it for today. Aapka din shubh ho!" if hinglish
-        else "That's it for today. Have a great one."
-    )
+    closer = "That's it for today. Have a great one."
     return {
         "rm_name": agenda.rm_name,
         "company_name": company_name,
@@ -213,7 +211,7 @@ def _template_payload(agenda: Agenda, language_style: str, company_name: str) ->
 
 async def generate_brief_payload(
     agenda: Agenda,
-    language_style: str = "hinglish",
+    language_style: str = "english_only",
     company_name: str = "Acme",
 ) -> dict:
     """Produce custom_args for the conversational Morning Brief Ringg agent.
@@ -234,9 +232,8 @@ async def generate_brief_payload(
         oc = AsyncOpenAI(api_key=openai_key, base_url=base_url)
 
         style_note = {
-            "hinglish": "natural English with 1-2 Hinglish phrases where they fit",
-            "english_only": "natural professional English, no Hindi",
-            "auto": "natural English; if the RM speaks Hinglish back, match them",
+            "english_only": "natural professional English",
+            "auto": "natural professional English; mirror the user's tone",
         }.get(language_style, "natural English")
 
         user = f"""

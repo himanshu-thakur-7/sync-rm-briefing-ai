@@ -236,7 +236,7 @@ async def _simulate_outreach(play_id, call_id, connection_id, client_id, client_
         f"{first}: Hmm. I've been a bit worried about that, honestly.",
         "SYNC: Completely understand. I've actually found a way that could save you a fair bit this year. Would you like me to connect you to your relationship manager to walk through the specifics?",
         f"{first}: Yes, that would be good. Maybe later this week though.",
-        "SYNC: Perfect — I'll set that up and have them call you. Aapka din shubh ho!",
+        "SYNC: Perfect — I'll set that up and have them call you. Have a great day!",
     ]
     q = _transcript_queues.get(call_id)
     full_lines = []

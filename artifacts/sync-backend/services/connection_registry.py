@@ -49,6 +49,8 @@ def _load_adapter_class(provider: str) -> type[CRMAdapter]:
         from adapters.leadsquared import LeadSquaredCRMAdapter as cls
     elif provider == "fake_leadsquared":
         from adapters.fake_leadsquared import FakeLeadSquaredCRMAdapter as cls
+    elif provider == "pipedrive":
+        from adapters.pipedrive import PipedriveCRMAdapter as cls
     else:
         raise ValueError(f"Unknown CRM provider: {provider}")
 
