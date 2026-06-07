@@ -134,3 +134,88 @@ class CommandLog(SQLModel, table=True):
     action_id_in_crm: Optional[str] = None
     created_at: datetime = Field(default_factory=_now)
     executed_at: Optional[datetime] = None
+
+
+class SaveCallPlay(SQLModel, table=True):
+    """Round 2: an autonomous outbound 'save call' the Risk Radar wants to place."""
+
+    __tablename__ = "save_call_plays"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    connection_id: str = Field(index=True)
+    client_id: str = Field(index=True)
+    client_name: str = ""
+    client_phone: str = ""
+    trigger_type: str = ""  # npa_risk | aging_complaint | emi_overdue_soon | winback | proactive_crosssell
+    urgency: str = "MEDIUM"  # CRITICAL | HIGH | MEDIUM | LOW
+    objective: str = ""
+    talking_points: list = Field(default_factory=list, sa_column=Column(JSON))
+    rationale: str = ""
+    matched_triggers: list = Field(default_factory=list, sa_column=Column(JSON))
+    status: str = Field(default="queued")  # queued | calling | transferred | completed | failed | dismissed
+    call_id: Optional[str] = Field(default=None, index=True)
+    outcome: Optional[str] = None
+    created_at: datetime = Field(default_factory=_now)
+    called_at: Optional[datetime] = None
+
+
+class MorningBriefSchedule(SQLModel, table=True):
+    """Round 3: a recurring daily-standup call SYNC places to the RM/Advisor."""
+
+    __tablename__ = "morning_brief_schedules"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    rm_id: str = ""
+    rm_name: str = ""
+    rm_phone: str = ""
+    connection_id: str = Field(index=True)
+    hour_local: int = 7
+    minute_local: int = 45
+    weekday_mask: int = 31  # bit 0=Mon ... bit 6=Sun; 31 = Mon-Fri
+    timezone: str = "Asia/Kolkata"  # IANA name
+    company_name: str = "Acme"
+    language_style: str = "hinglish"  # auto | english_only | hinglish
+    enabled: bool = True
+    last_called_at: Optional[datetime] = None
+    next_call_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=_now)
+
+
+class MorningBriefCall(SQLModel, table=True):
+    """Round 3: history of a single morning-brief call."""
+
+    __tablename__ = "morning_brief_calls"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    schedule_id: int = Field(index=True)
+    call_id: str = Field(index=True, unique=True)
+    agenda_json: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    questions_asked: int = 0
+    actions_executed: int = 0
+    summary: str = ""
+    started_at: datetime = Field(default_factory=_now)
+    ended_at: Optional[datetime] = None
+
+
+class CallAnalysis(SQLModel, table=True):
+    """Round 2: GPT-4o post-call intelligence for any completed call."""
+
+    __tablename__ = "call_analyses"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    call_id: str = Field(index=True, unique=True)
+    client_id: Optional[str] = Field(default=None, index=True)
+    connection_id: Optional[str] = None
+    call_kind: str = "briefing"  # briefing | save_call | manual
+    sentiment_label: str = "neutral"
+    sentiment_score: int = 50  # 0-100
+    sentiment_timeline: list = Field(default_factory=list, sa_column=Column(JSON))
+    objections: list = Field(default_factory=list, sa_column=Column(JSON))
+    commitments: list = Field(default_factory=list, sa_column=Column(JSON))
+    churn_delta: float = 0.0  # -1 (reduced) .. +1 (increased)
+    churn_label: str = "unchanged"  # reduced | unchanged | increased
+    next_best_action: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    summary: str = ""
+    nba_executed: bool = False
+    nba_action_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=_now)

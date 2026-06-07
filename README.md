@@ -2,7 +2,7 @@
 
 > "Before every client meeting, your RM knows everything. Not because they read a CRM — because they made a 30-second phone call to SYNC."
 
-SYNC is the **voice-AI integration layer** that plugs into the bank's existing CRM (HubSpot, Salesforce, Zoho, Microsoft Dynamics 365, Freshworks, or LeadSquared). Relationship Managers call a Ringg AI phone number or click "Sync Now" on the dashboard and receive a crisp 45-second briefing: portfolio health, risk flags, open complaints, and a context-aware cross-sell pitch — narrated like a sharp colleague, not a CRM report.
+SYNC is the **voice-AI integration layer** that plugs into the CRM your business already runs (HubSpot, Salesforce, Zoho, Microsoft Dynamics 365, Freshworks, or LeadSquared). Relationship Managers and Advisors — across financial services, real estate, wealth management, B2B sales, any business with a real customer book — call a Ringg AI phone number or click "Sync Now" on the dashboard and receive a crisp 45-second briefing: portfolio health, risk flags, open complaints, and a context-aware cross-sell pitch — narrated like a sharp colleague, not a CRM report.
 
 **GrowthX Voice AI Buildathon — powered by Ringg AI.**
 

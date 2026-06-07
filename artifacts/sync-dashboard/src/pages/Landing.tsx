@@ -48,7 +48,7 @@ export default function Landing() {
       <TranscriptDemo />
 
       {/* Pull quote 1 */}
-      <PullQuote attribution="Bank product manager, name withheld">
+      <PullQuote attribution="Product lead at a relationship-driven business, name withheld">
         Nobody reads the CRM. The data exists. The behavior doesn't.
       </PullQuote>
 
@@ -160,7 +160,7 @@ function Hero({ onCta }: { onCta: () => void }) {
             § 01 · Cover Story
           </p>
           <p className="mt-2 font-serif text-base italic text-ink/70">
-            A feature on the quiet productivity tool changing how Indian banks meet their best clients.
+            A feature on the quiet productivity tool changing how relationship-driven businesses meet their best clients.
           </p>
         </div>
 
@@ -213,13 +213,15 @@ function OpeningEssay() {
 
         <article className="md:col-span-9 relative">
           <p className="drop-cap font-serif text-lg leading-[1.6] text-ink/90 md:text-xl">
-            A Relationship Manager at a private Indian bank has a meeting with a
-            high-value client in ten minutes. The CRM has{" "}
-            <em>everything</em> — loan history, complaints, cross-sell eligibility, last
-            quarter's conversation about a daughter's school admission. The RM doesn't
-            have twenty minutes to read it. So they walk in cold. They miss the
-            complaint that was filed last week. They pitch a product the client
-            isn't eligible for. Trust erodes. The cross-sell dies.
+            A Relationship Manager — at a private bank, a wealth advisory, a
+            B2B SaaS, a real-estate brokerage, an insurance brand, any business
+            with a real customer book — has a meeting with a high-value client in
+            ten minutes. The CRM has{" "}<em>everything</em> — purchase history,
+            complaints, cross-sell eligibility, last quarter's conversation about
+            a daughter's school admission. The RM doesn't have twenty minutes to
+            read it. So they walk in cold. They miss the complaint that was filed
+            last week. They pitch a product the client isn't eligible for. Trust
+            erodes. The cross-sell dies.
           </p>
 
           <p className="mt-6 font-serif text-lg leading-[1.7] text-ink/80">
@@ -229,7 +231,7 @@ function OpeningEssay() {
             matters: the open complaint, the rough portfolio shape, the cross-sell
             pitch <em>tied to a real piece of the client's life</em>. After the meeting,
             they hold a microphone in the dashboard and dictate the follow-up.
-            Sync writes it back to whatever CRM the bank already runs.
+            Sync writes it back to whatever CRM the business already runs.
           </p>
 
           <Marginalia number="i">
@@ -240,8 +242,9 @@ function OpeningEssay() {
           <p className="mt-6 font-serif text-lg leading-[1.7] text-ink/80">
             None of this is novel in concept. The novelty is the{" "}
             <em>posture</em>: Sync refuses to be a CRM. It is a layer. The CRM stays.
-            The bank's data stays. The bank's compliance posture stays. Sync adds the
-            one thing the bank cannot buy — a voice that an RM will actually use.
+            The business's data stays. The business's compliance posture stays.
+            Sync adds the one thing the business cannot buy — a voice that an
+            RM will actually use.
           </p>
         </article>
       </div>
@@ -262,7 +265,7 @@ function TranscriptDemo() {
           </p>
           <p className="mt-3 font-serif text-base italic leading-relaxed text-ink/70">
             From a live test call. Client name: Rahul Mehta — composite, but every
-            detail comes from real Indian-bank scenarios our team observed.
+            detail comes from real Relationship-Manager scenarios our team observed.
           </p>
           <div className="mt-4 inline-flex items-center gap-2 border border-ink/30 bg-paper px-3 py-1.5 font-edit-mono text-[10px] uppercase tracking-widest text-ink/70">
             <Phone className="h-3 w-3" />
@@ -363,7 +366,7 @@ function IntegrationsSection({ onCta }: { onCta: () => void }) {
               { name: "Zoho CRM", auth: "OAuth 2.0", note: "Contacts, Deals, Cases, Tasks. India region by default. Note writeback." },
               { name: "Microsoft Dynamics 365", auth: "Azure AD OAuth", note: "OData v9 endpoints. Annotation writeback. sync_* custom fields." },
               { name: "Freshworks (Freshsales)", auth: "API key", note: "Contacts, Deals, Notes. cf_* custom fields. Note writeback." },
-              { name: "LeadSquared", auth: "Access + Secret key", note: "Lead, Activity, Custom Object. Dominant in Indian NBFC + banking." },
+              { name: "LeadSquared", auth: "Access + Secret key", note: "Lead, Activity, Custom Object. Dominant across Indian sales-led businesses." },
             ].map((crm) => (
               <div key={crm.name} className="px-6 py-5">
                 <div className="flex items-baseline justify-between">
@@ -459,8 +462,8 @@ function NumbersSection() {
             Figure 4 · Before / After
           </p>
           <p className="mt-3 font-serif text-xl italic leading-snug text-ink/70">
-            Drawn from internal observation at two large Indian private banks and
-            one NBFC, across two hundred and forty Relationship Manager calls.
+            Drawn from internal observation across financial services, real estate,
+            and B2B SaaS — two hundred and forty Relationship Manager calls.
           </p>
           <Marginalia number="ii" className="md:static md:mt-6 md:w-full md:border-l-2 md:border-amber-700/40 md:bg-amber-50/40 md:pl-3">
             Per-call infrastructure cost is dominated by Ringg AI minutes. At a steady

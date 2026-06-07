@@ -2,7 +2,7 @@
  * Editorial dashboard masthead — like the running header of a newspaper.
  * "SYNC · The Briefing Desk · Vol. II No. 1 · LIVE"
  */
-import { Settings } from "lucide-react";
+import { Settings, Radar, Sunrise } from "lucide-react";
 import { useLocation } from "wouter";
 import { ConnectionSwitcher } from "./ConnectionSwitcher";
 import { PiiScrubToggle } from "./PiiScrubToggle";
@@ -38,8 +38,15 @@ export function Header({ isConnected, latencyMs, activeClientId, rmName }: Props
             <span>Vol. II · No. 1 · The Briefing Desk</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden sm:inline text-ink/40">GrowthX Buildathon</span>
-            <a href="/" className="hover:text-ink">← Back to home</a>
+            <button onClick={() => navigate("/radar")} className="inline-flex items-center gap-1 hover:text-ink">
+              <Radar className="h-3 w-3" /> Watchlist
+            </button>
+            <span className="hidden sm:inline text-ink/30">·</span>
+            <button onClick={() => navigate("/morning-brief")} className="inline-flex items-center gap-1 hover:text-ink">
+              <Sunrise className="h-3 w-3" /> Standup
+            </button>
+            <span className="hidden sm:inline text-ink/30">·</span>
+            <a href="/" className="hover:text-ink">← Home</a>
           </div>
         </div>
       </div>

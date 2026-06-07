@@ -14,6 +14,8 @@ from routers import oauth as oauth_router
 from routers import integrations as integrations_router
 from routers import embeds as embeds_router
 from routers import voice_commands as voice_router
+from routers import radar as radar_router
+from routers import morning_brief as morning_brief_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,6 +29,12 @@ async def lifespan(app: FastAPI):
     logger.info("SYNC backend starting up...")
     await init_db()
     await seed_default_connections()
+    # Round 3: resume Morning Brief schedules
+    try:
+        from services import morning_brief_scheduler
+        await morning_brief_scheduler.load_all()
+    except Exception as e:
+        logger.warning("Morning brief scheduler init failed: %s", e)
     logger.info("Legacy CRM_ADAPTER env: %s", settings.crm_adapter)
     logger.info("Ringg configured: %s", bool(settings.ringg_api_key))
     logger.info("OpenAI configured: %s", bool(settings.openai_api_key))
@@ -83,6 +91,8 @@ app.include_router(oauth_router.router)
 app.include_router(integrations_router.router)
 app.include_router(embeds_router.router)
 app.include_router(voice_router.router)
+app.include_router(radar_router.router)
+app.include_router(morning_brief_router.router)
 
 
 @app.get("/api/healthz", tags=["health"])
@@ -101,7 +111,7 @@ async def get_ringg_agent_config():
         "secondary_language": "hi-IN",
         "intro_message": "Hey! This is SYNC. Which client are you meeting today?",
         "introduction_and_objective": (
-            "You are SYNC, a voice AI co-pilot for Relationship Managers at an Indian bank. "
+            "You are SYNC, a voice AI co-pilot for Relationship Managers and Advisors. "
             "When an RM calls you or you call an RM, your job is to deliver a crisp, warm, "
             "45-second briefing about their client so they walk into the meeting fully prepared. "
             "You sound like a sharp, friendly colleague — never a bot."

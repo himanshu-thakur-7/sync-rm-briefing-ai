@@ -32,9 +32,36 @@ async def main() -> None:
     agent_id = await ringg_service.create_agent(config)
     print(f"RINGG_AGENT_ID={agent_id}")
 
-    if settings.backend_url:
-        await ringg_service.setup_webhooks(agent_id, f"{settings.backend_url}/api/v1/webhooks/ringg")
-        print("Webhooks configured")
+    webhook_url = f"{settings.backend_url}/api/v1/webhooks/ringg" if settings.backend_url else ""
+    if webhook_url:
+        await ringg_service.setup_webhooks(agent_id, webhook_url)
+        print("Webhooks configured for briefing agent")
+
+    # ── Round 2: create the client-facing SYNC Outreach agent ──────────────
+    outreach_path = ROOT / "ringg" / "outreach-agent-config.json"
+    if outreach_path.exists():
+        outreach_config = json.loads(outreach_path.read_text(encoding="utf-8"))
+        outreach_id = await ringg_service.create_agent(outreach_config)
+        print(f"RINGG_OUTREACH_AGENT_ID={outreach_id}")
+        if webhook_url:
+            await ringg_service.setup_webhooks(outreach_id, webhook_url)
+            print("Webhooks configured for outreach agent")
+
+    # ── Round 3: create the conversational SYNC Morning Brief agent ────────
+    brief_path = ROOT / "ringg" / "morning-brief-agent-config.json"
+    if brief_path.exists():
+        brief_config = json.loads(brief_path.read_text(encoding="utf-8"))
+        brief_id = await ringg_service.create_agent(brief_config)
+        print(f"RINGG_MORNING_BRIEF_AGENT_ID={brief_id}")
+        if webhook_url:
+            await ringg_service.setup_webhooks(brief_id, webhook_url)
+            print("Webhooks configured for morning brief agent")
+        print(
+            "\nNOTE: The Morning Brief agent uses mid-call function tools "
+            "(ask_crm, log_action). Their endpoints are templated as "
+            "{{mid_call_tool_url}}/{{call_id}}/ask and /act — they're filled "
+            "in by ringg_service.initiate_morning_brief_call at call time."
+        )
 
 
 if __name__ == "__main__":

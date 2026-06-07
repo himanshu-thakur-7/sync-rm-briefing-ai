@@ -1,6 +1,6 @@
 /**
  * Editorial Integrations page — like a "Directory of Connected Services"
- * appendix at the back of a banking manual.
+ * appendix at the back of an operations manual.
  */
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";

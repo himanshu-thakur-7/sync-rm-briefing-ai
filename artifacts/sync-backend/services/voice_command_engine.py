@@ -224,7 +224,7 @@ async def parse_command(transcript: str, ctx: CommandContext) -> ParsedCommand:
         import openai
         client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
 
-        system = f"""You are SYNC, a voice AI assistant helping bank Relationship Managers log CRM actions hands-free.
+        system = f"""You are SYNC, a voice AI assistant helping Relationship Managers and Advisors log CRM actions hands-free.
 
 Today is {date.today().isoformat()}.
 Active client: {ctx.active_client_name or "unknown"} (ID: {ctx.active_client_id or "unknown"}).

@@ -7,6 +7,7 @@ import { BriefingLog } from "@workspace/api-client-react";
 import { CheckCircle2, FileText } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { CRMSourceBadge, providerFromConnectionId } from "./CRMSourceBadge";
+import { PostCallIntelligence } from "./PostCallIntelligence";
 import { useConnection } from "@/lib/connection-context";
 import { usePii } from "@/lib/pii-context";
 
@@ -157,11 +158,12 @@ export function LiveFeed({ briefings }: { briefings: BriefingLog[] }) {
               </DialogDescription>
             )}
           </DialogHeader>
-          <div className="mt-1 max-h-60 overflow-y-auto border-l-2 border-ink bg-ink/[0.02] py-3 pl-4 font-serif text-sm italic leading-relaxed text-ink/90">
+          <div className="mt-1 max-h-52 overflow-y-auto border-l-2 border-ink bg-ink/[0.02] py-3 pl-4 font-serif text-sm italic leading-relaxed text-ink/90">
             {loading
               ? <span className="animate-pulse text-ink/40">Loading transcript…</span>
               : <p className="whitespace-pre-wrap">{transcript}</p>}
           </div>
+          {active && <PostCallIntelligence callId={active.call_id} />}
         </DialogContent>
       </Dialog>
     </>

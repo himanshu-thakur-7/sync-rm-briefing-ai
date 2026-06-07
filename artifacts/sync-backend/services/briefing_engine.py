@@ -10,7 +10,8 @@ from models import ClientFullProfile
 logger = logging.getLogger(__name__)
 
 BRIEFING_SYSTEM_PROMPT = """
-You generate RM briefing scripts for SYNC, a voice AI co-pilot for Indian bank Relationship Managers.
+You generate briefing scripts for SYNC, a voice AI co-pilot for Relationship
+Managers and Advisors at any business with a real customer book.
 Given structured client data, produce a natural, conversational 45-second briefing script.
 
 Rules:
@@ -89,6 +90,97 @@ def _template_briefing(client: ClientFullProfile) -> str:
     lines.append("That's the quick sync. Kuch aur chahiye, ya ready ho?")
 
     return " ".join(lines)
+
+
+OUTREACH_SYSTEM_PROMPT = """
+You script a CLIENT-FACING outbound voice agent — "SYNC Outreach" — that calls
+on behalf of {{company_name}}. The agent reaches a real customer to pursue ONE
+objective warmly and compliantly. You return a JSON object of custom variables
+the voice agent will use.
+
+Rules:
+1. The agent is NOT the customer's RM — it calls on behalf of {{company_name}}
+   and offers to warm-transfer to the human RM if the customer wants specifics.
+2. ALWAYS open with an honest disclaimer: it's an AI assistant + the call may be recorded.
+3. Be warm, respectful, never alarmist. For risk/NPA cases, LEAD WITH SAVINGS or help,
+   never "your account is in trouble".
+4. Code-switch to natural Hinglish where it fits.
+5. Never fabricate numbers — only use what's in the talking points.
+6. Keep the opening_line under 25 words.
+
+Return ONLY a JSON object with these keys:
+  opening_line, key_points (array of 3 short strings), offer (one sentence),
+  warm_transfer_trigger (when to offer the RM), hinglish_closer (one short line).
+"""
+
+
+async def generate_outreach_brief(client: ClientFullProfile, play: dict) -> dict:
+    """
+    Build the custom_args payload for the client-facing SYNC Outreach agent.
+    `play` is a dict with objective, talking_points, trigger_type, urgency.
+    Falls back to a deterministic template when OpenAI is not configured.
+    """
+    import json as _json
+
+    p = client.profile
+    rm_name = os.environ.get("DEMO_RM_NAME", "your relationship manager")
+    company_name = os.environ.get("DEMO_COMPANY_NAME", "Acme")
+
+    def _template() -> dict:
+        first = p.name.split()[0]
+        points = play.get("talking_points", [])[:3]
+        return {
+            "opening_line": f"Hi {first}, this is SYNC, an AI assistant calling on behalf of {company_name} — this call may be recorded. Do you have a quick minute?",
+            "key_points": points or [play.get("objective", "A quick check-in about your account.")],
+            "offer": play.get("objective", "We'd like to help with your account."),
+            "warm_transfer_trigger": f"If they want specifics or to discuss numbers, offer to connect them to {rm_name}.",
+            "hinglish_closer": "Bas itna hi tha — koi baat ho toh hum yahin hain. Aapka din shubh ho!",
+        }
+
+    openai_key = os.environ.get("OPENAI_API_KEY", "")
+    base = {
+        "client_name": p.name,
+        "company_name": company_name,
+        "objective": play.get("objective", ""),
+        "rm_name": rm_name,
+        "compliance_disclaimer": f"This is an AI assistant calling on behalf of {company_name}. This call may be recorded for quality.",
+    }
+
+    if not openai_key:
+        return {**base, **_template()}
+
+    try:
+        from openai import AsyncOpenAI
+
+        base_url = os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL") or "https://api.openai.com/v1"
+        oc = AsyncOpenAI(api_key=openai_key, base_url=base_url)
+
+        user_message = f"""
+CLIENT: {p.name}, {p.age}, {p.occupation} at {p.company}, {p.city}
+OBJECTIVE: {play.get('objective', '')}
+URGENCY: {play.get('urgency', 'MEDIUM')}
+TRIGGER: {play.get('trigger_type', '')}
+TALKING POINTS:
+{chr(10).join('  - ' + tp for tp in play.get('talking_points', []))}
+RATIONALE: {play.get('rationale', '')}
+
+Generate the outreach JSON now.
+"""
+        resp = await oc.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": OUTREACH_SYSTEM_PROMPT},
+                {"role": "user", "content": user_message},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=400,
+            temperature=0.6,
+        )
+        parsed = _json.loads(resp.choices[0].message.content)
+        return {**base, **parsed}
+    except Exception as e:
+        logger.warning(f"Outreach brief generation failed: {e}. Using template.")
+        return {**base, **_template()}
 
 
 async def generate_briefing(client: ClientFullProfile) -> str:

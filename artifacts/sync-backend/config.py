@@ -7,6 +7,12 @@ class Settings(BaseSettings):
     ringg_base_url: str = "https://prod-api.ringg.ai/ca/api/v0"
     ringg_agent_id: str = ""
     ringg_from_number_id: str = ""
+    ringg_outreach_agent_id: str = ""  # client-facing "SYNC Outreach" agent
+    ringg_morning_brief_agent_id: str = ""  # RM-facing "SYNC Morning Brief" conversational agent
+
+    # Risk Radar
+    radar_autopilot_default: bool = False
+    radar_scan_interval_min: int = 15
 
     # OpenAI
     openai_api_key: str = ""
@@ -53,6 +59,13 @@ class Settings(BaseSettings):
     # Demo defaults
     demo_rm_phone: str = "+919876543210"
     demo_rm_name: str = "Himanshu"
+    # Tenant-templated company name used in all client-facing voice scripts.
+    # In production each connection would carry its own; for the demo we
+    # default to "Acme" so the voice never says "your bank" unprompted.
+    demo_company_name: str = "Acme"
+    # Save calls target this number on stage (presenter's second phone). In
+    # production the client phone would come from the CRM contact record.
+    demo_client_phone: str = "+919876543210"
 
     class Config:
         env_file = ".env"

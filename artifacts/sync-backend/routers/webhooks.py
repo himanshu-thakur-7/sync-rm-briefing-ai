@@ -23,7 +23,7 @@ from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 import database
 from config import settings
 from db import get_session
-from db.models import BriefingLogRow, WebhookEvent
+from db.models import BriefingLogRow, CallAnalysis, SaveCallPlay, WebhookEvent
 
 router = APIRouter(tags=["webhooks"])
 logger = logging.getLogger(__name__)
@@ -172,6 +172,128 @@ async def _update_briefing_log(call_id: str, duration: float, latency: Optional[
         logger.warning("Failed to update BriefingLogRow for %s: %s", call_id, e)
 
 
+# ─── Round 2: Post-Call Intelligence ───────────────────────────────────────
+
+async def run_post_call_analysis(
+    call_id: str,
+    transcript_override: Optional[str] = None,
+    call_kind: str = "briefing",
+    connection_id: Optional[str] = None,
+    client_id: Optional[str] = None,
+) -> None:
+    """Analyze a completed call, store CallAnalysis, broadcast, and (for save
+    calls) auto-execute the next-best-action against the CRM."""
+    from sqlmodel import select
+    from services.call_analysis_engine import analyze_call
+
+    # Resolve transcript
+    transcript = transcript_override
+    if not transcript:
+        try:
+            async with get_session() as session:
+                row = (await session.exec(
+                    select(BriefingLogRow).where(BriefingLogRow.call_id == call_id)
+                )).first()
+                if row and row.transcript:
+                    transcript = row.transcript
+        except Exception:
+            pass
+    if not transcript:
+        logger.info("No transcript for %s — skipping analysis", call_id)
+        return
+
+    # Resolve the linked SaveCallPlay (if this was a save call)
+    play = None
+    try:
+        async with get_session() as session:
+            play = (await session.exec(
+                select(SaveCallPlay).where(SaveCallPlay.call_id == call_id)
+            )).first()
+    except Exception:
+        pass
+    if play:
+        call_kind = "save_call"
+        connection_id = connection_id or play.connection_id
+        client_id = client_id or play.client_id
+
+    # Resolve the client profile for richer analysis
+    client = None
+    if connection_id and client_id:
+        try:
+            from services import connection_registry
+            adapter = await connection_registry.crm_for(connection_id)
+            client = await adapter.get_client(client_id)
+        except Exception:
+            pass
+
+    result = await analyze_call(transcript, client, call_kind)
+
+    # Persist CallAnalysis (upsert by call_id)
+    async with get_session() as session:
+        existing = (await session.exec(
+            select(CallAnalysis).where(CallAnalysis.call_id == call_id)
+        )).first()
+        target = existing or CallAnalysis(call_id=call_id)
+        target.client_id = client_id
+        target.connection_id = connection_id
+        target.call_kind = call_kind
+        target.sentiment_label = result.sentiment_label
+        target.sentiment_score = result.sentiment_score
+        target.sentiment_timeline = result.sentiment_timeline
+        target.objections = result.objections
+        target.commitments = result.commitments
+        target.churn_delta = result.churn_delta
+        target.churn_label = result.churn_label
+        target.next_best_action = result.next_best_action
+        target.summary = result.summary
+        session.add(target)
+
+    await broadcast_event({
+        "type": "call_analysis_ready",
+        "data": {
+            "call_id": call_id,
+            "client_id": client_id,
+            "call_kind": call_kind,
+            "sentiment_label": result.sentiment_label,
+            "sentiment_score": result.sentiment_score,
+            "churn_label": result.churn_label,
+            "objections": result.objections,
+            "commitments": result.commitments,
+            "next_best_action": result.next_best_action,
+            "summary": result.summary,
+        },
+    })
+
+    # For save calls, auto-execute the next-best-action and finalize the play.
+    if play and result.next_best_action and connection_id and client_id:
+        try:
+            from services.voice_command_engine import execute_command
+            from datetime import date as _date
+            nba = result.next_best_action
+            args = dict(nba.get("args", {}))
+            # Fill a sensible default date if the model left it blank
+            for k in ("due_date", "when"):
+                if k in args and not args[k]:
+                    args[k] = _date.today().isoformat()
+            action_id = await execute_command(nba.get("tool", "create_note"), args, connection_id, client_id)
+            async with get_session() as session:
+                a = (await session.exec(select(CallAnalysis).where(CallAnalysis.call_id == call_id))).first()
+                if a:
+                    a.nba_executed = True
+                    a.nba_action_id = str(action_id)
+                    session.add(a)
+                pl = (await session.exec(select(SaveCallPlay).where(SaveCallPlay.call_id == call_id))).first()
+                if pl:
+                    pl.status = "completed"
+                    if not pl.outcome:
+                        pl.outcome = result.summary[:200]
+                    session.add(pl)
+            await broadcast_event({"type": "command_executed", "data": {
+                "tool": nba.get("tool"), "client_id": client_id, "action_id": str(action_id), "source": "save_call_nba"}})
+        except Exception as e:
+            logger.warning("Auto-NBA execution failed for %s: %s", call_id, e)
+
+
 # ─── Ringg webhook endpoint ────────────────────────────────────────────────
 
 @router.post("/api/v1/webhooks/ringg")
@@ -272,6 +394,20 @@ async def _process_ringg_event(
                     "type": "transcript_chunk",
                     "data": {"call_id": call_id, "text": transcript},
                 })
+                # Round 2: kick off post-call intelligence
+                asyncio.create_task(run_post_call_analysis(call_id, transcript_override=transcript))
+
+        elif event_type == "call_transferred":
+            from sqlmodel import select
+            async with get_session() as session:
+                pl = (await session.exec(
+                    select(SaveCallPlay).where(SaveCallPlay.call_id == call_id)
+                )).first()
+                if pl:
+                    pl.status = "transferred"
+                    pl.outcome = "Warm-transferred to RM"
+                    session.add(pl)
+            await broadcast_event({"type": "save_call_transferred", "data": {"call_id": call_id}})
 
         elif event_type == "transcript_chunk":
             chunk = body.get("text", "")

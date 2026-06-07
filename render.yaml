@@ -37,6 +37,14 @@ services:
         sync: false
       - key: RINGG_FROM_NUMBER_ID
         sync: false
+      - key: RINGG_OUTREACH_AGENT_ID
+        sync: false
+      - key: RINGG_MORNING_BRIEF_AGENT_ID
+        sync: false
+      - key: DEMO_CLIENT_PHONE
+        sync: false
+      - key: DEMO_COMPANY_NAME
+        value: Acme
       - key: HUBSPOT_CLIENT_ID
         sync: false
       - key: HUBSPOT_CLIENT_SECRET

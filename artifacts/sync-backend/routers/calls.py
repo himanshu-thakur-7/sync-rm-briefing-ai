@@ -232,3 +232,90 @@ async def stream_transcript(call_id: str):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ─── Round 2: Post-Call Intelligence endpoints ─────────────────────────────
+
+@router.get("/sync-now/{call_id}/analysis")
+async def get_call_analysis(call_id: str):
+    """Return stored CallAnalysis for a call (404 until ready)."""
+    from sqlmodel import select
+    from db import get_session
+    from db.models import CallAnalysis
+
+    async with get_session() as session:
+        row = (await session.exec(
+            select(CallAnalysis).where(CallAnalysis.call_id == call_id)
+        )).first()
+    if not row:
+        raise HTTPException(404, "Analysis not ready")
+    return {
+        "call_id": row.call_id,
+        "client_id": row.client_id,
+        "call_kind": row.call_kind,
+        "sentiment_label": row.sentiment_label,
+        "sentiment_score": row.sentiment_score,
+        "sentiment_timeline": row.sentiment_timeline,
+        "objections": row.objections,
+        "commitments": row.commitments,
+        "churn_delta": row.churn_delta,
+        "churn_label": row.churn_label,
+        "next_best_action": row.next_best_action,
+        "summary": row.summary,
+        "nba_executed": row.nba_executed,
+        "nba_action_id": row.nba_action_id,
+    }
+
+
+@router.post("/sync-now/{call_id}/analyze")
+async def trigger_call_analysis(call_id: str):
+    """Manually (re)run post-call analysis — demo safety / re-run."""
+    from routers.webhooks import run_post_call_analysis
+    await run_post_call_analysis(call_id)
+    return {"status": "analyzed", "call_id": call_id}
+
+
+@router.post("/sync-now/{call_id}/analysis/execute-nba")
+async def execute_next_best_action(call_id: str):
+    """Execute the stored next-best-action against the active CRM adapter."""
+    from sqlmodel import select
+    from db import get_session
+    from db.models import CallAnalysis
+    from services.voice_command_engine import execute_command
+    from datetime import date
+
+    async with get_session() as session:
+        row = (await session.exec(
+            select(CallAnalysis).where(CallAnalysis.call_id == call_id)
+        )).first()
+        if not row:
+            raise HTTPException(404, "Analysis not ready")
+        nba = row.next_best_action or {}
+        connection_id = row.connection_id
+        client_id = row.client_id
+
+    if not nba or not connection_id:
+        raise HTTPException(400, "No executable next-best-action")
+
+    args = dict(nba.get("args", {}))
+    for k in ("due_date", "when"):
+        if k in args and not args[k]:
+            args[k] = date.today().isoformat()
+
+    try:
+        action_id = await execute_command(nba.get("tool", "create_note"), args, connection_id, client_id)
+    except Exception as e:
+        raise HTTPException(502, f"Execution failed: {e}")
+
+    async with get_session() as session:
+        row = (await session.exec(select(CallAnalysis).where(CallAnalysis.call_id == call_id))).first()
+        if row:
+            row.nba_executed = True
+            row.nba_action_id = str(action_id)
+            session.add(row)
+
+    from routers.webhooks import broadcast_event
+    await broadcast_event({"type": "command_executed", "data": {
+        "tool": nba.get("tool"), "client_id": client_id, "action_id": str(action_id), "source": "manual_nba"}})
+
+    return {"status": "executed", "tool": nba.get("tool"), "action_id": str(action_id)}

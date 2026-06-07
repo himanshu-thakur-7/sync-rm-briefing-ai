@@ -6,6 +6,8 @@ import { ThemeProvider } from "next-themes";
 import Landing from "@/pages/Landing";
 import Dashboard from "@/pages/Dashboard";
 import IntegrationsIndex from "@/pages/IntegrationsIndex";
+import RiskRadar from "@/pages/RiskRadar";
+import MorningBrief from "@/pages/MorningBrief";
 import NotFound from "@/pages/not-found";
 import { ConnectionProvider } from "@/lib/connection-context";
 import { PiiProvider } from "@/lib/pii-context";
@@ -17,6 +19,8 @@ function Router() {
     <Switch>
       <Route path="/" component={Landing} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/radar" component={RiskRadar} />
+      <Route path="/morning-brief" component={MorningBrief} />
       <Route path="/settings/integrations" component={IntegrationsIndex} />
       <Route component={NotFound} />
     </Switch>

@@ -87,6 +87,106 @@ class RinggService:
             logger.info(f"Initiated Ringg call: {call_id}")
             return call_id
 
+    async def initiate_outreach_call(
+        self,
+        outreach_agent_id: str,
+        from_number_id: str,
+        client_phone: str,
+        client_name: str,
+        custom_args: dict,
+        callback_url: str,
+        transfer_to_number: str = "",
+    ) -> str:
+        """
+        POST /calling/outbound/individual — place a CLIENT-FACING save call.
+        Uses the SYNC Outreach agent and passes a warm-transfer number so the
+        agent can hand off to the human RM. Returns call_id.
+        """
+        if not settings.ringg_api_key:
+            logger.warning("RINGG_API_KEY not set — simulating outreach call for demo")
+            import uuid
+            return f"demo_outreach_{uuid.uuid4().hex[:8]}"
+
+        # The warm-transfer number rides in custom_args; the outreach agent's
+        # prompt is configured to transfer to {{rm_phone}} on request.
+        args = {**custom_args}
+        if transfer_to_number:
+            args["rm_phone"] = transfer_to_number
+
+        payload = {
+            "agent_id": outreach_agent_id,
+            "from_number_id": from_number_id,
+            "mobile_number": client_phone,
+            "name": client_name,
+            "custom_args_values": args,
+            "callback_url": callback_url,
+        }
+        if transfer_to_number:
+            # Best-effort: Ringg supports call transfer config; exact key may vary
+            # by workspace. We pass it both ways so whichever the API honours works.
+            payload["transfer_number"] = transfer_to_number
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{self.BASE_URL}/calling/outbound/individual",
+                json=payload,
+                headers=RINGG_HEADERS,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            call_id = data.get("call_id") or data.get("id") or data.get("callId", "")
+            logger.info(f"Initiated Ringg outreach call: {call_id}")
+            return call_id
+
+    async def initiate_morning_brief_call(
+        self,
+        brief_agent_id: str,
+        from_number_id: str,
+        rm_phone: str,
+        rm_name: str,
+        custom_args: dict,
+        callback_url: str,
+        mid_call_tool_url: str = "",
+    ) -> str:
+        """
+        Round 3 — Daily Standup. Place a CONVERSATIONAL outbound call to the RM.
+        The brief agent is configured with mid-call tools (ask_crm, log_action)
+        that hit our `mid_call_tool_url` during the call so the AI can answer
+        questions and execute CRM actions while the conversation is live.
+        Returns call_id. Keyless: returns a `demo_brief_*` id for simulation.
+        """
+        if not settings.ringg_api_key:
+            logger.warning("RINGG_API_KEY not set — simulating morning brief call for demo")
+            import uuid
+            return f"demo_brief_{uuid.uuid4().hex[:8]}"
+
+        payload = {
+            "agent_id": brief_agent_id,
+            "from_number_id": from_number_id,
+            "mobile_number": rm_phone,
+            "name": rm_name,
+            "custom_args_values": custom_args,
+            "callback_url": callback_url,
+        }
+        if mid_call_tool_url:
+            # Ringg supports per-call tool/function URLs; the exact key may vary
+            # across workspaces. We send the common shapes so whichever the API
+            # honours wires up.
+            payload["tool_endpoint"] = mid_call_tool_url
+            payload["function_endpoint"] = mid_call_tool_url
+            payload["custom_args_values"]["mid_call_tool_url"] = mid_call_tool_url
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{self.BASE_URL}/calling/outbound/individual",
+                json=payload,
+                headers=RINGG_HEADERS,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            call_id = data.get("call_id") or data.get("id") or data.get("callId", "")
+            logger.info(f"Initiated Ringg morning brief call: {call_id}")
+            return call_id
+
     async def get_call_details(self, call_id: str) -> dict:
         """GET /calling/history/{call_id}"""
         async with httpx.AsyncClient(timeout=15) as client:
