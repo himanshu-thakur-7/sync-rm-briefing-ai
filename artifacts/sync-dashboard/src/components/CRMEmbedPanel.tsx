@@ -118,10 +118,10 @@ export function CRMEmbedPanel({ connectionId, clientId, provider, onClose }: Pro
               href={spec.external_url ?? spec.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 font-edit-mono text-[9px] uppercase tracking-widest text-ink/50 hover:text-ink"
+              className="inline-flex items-center gap-1 border border-ink/30 bg-paper px-2 py-1 font-edit-mono text-[10px] font-semibold uppercase tracking-widest text-ink/80 hover:bg-ink hover:text-paper"
               title={`Open in ${spec.label}`}
             >
-              <span className="hidden sm:inline">Open in {spec.label}</span>
+              Open in {spec.label}
               <ExternalLink className="h-3 w-3" />
             </a>
           )}
