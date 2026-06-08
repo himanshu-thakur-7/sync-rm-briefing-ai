@@ -300,15 +300,7 @@
   <header class="masthead">
     <div class="masthead-top">
       <span class="crm-name">{{ provider_label | default("LeadSquared") }} Filing</span>
-      <span class="filing-id">
-        No. {{ client.profile.client_id }}
-        {% if external_url %}
-          · <a href="{{ external_url }}" target="_blank" rel="noopener noreferrer"
-               style="color: rgba(11,11,10,0.6); text-decoration: underline; text-underline-offset: 2px;">
-               Open in {{ provider_label | default("CRM") }} ↗
-             </a>
-        {% endif %}
-      </span>
+      <span class="filing-id">No. {{ client.profile.client_id }}</span>
     </div>
     <h1 class="filing-title">{{ client.profile.name }}</h1>
     <p class="filing-meta italic">
