@@ -50,8 +50,8 @@ export function LiveFeed({ briefings }: { briefings: BriefingLog[] }) {
           </div>
         </div>
 
-        {/* Table head */}
-        <div className="grid grid-cols-12 gap-2 border-b border-ink/15 bg-ink/[0.01] px-4 py-1.5 font-edit-mono text-[9px] uppercase tracking-widest text-ink/40">
+        {/* Table head — hidden on mobile (rows render as cards there) */}
+        <div className="hidden grid-cols-12 gap-2 border-b border-ink/15 bg-ink/[0.01] px-4 py-1.5 font-edit-mono text-[9px] uppercase tracking-widest text-ink/40 md:grid">
           <span className="col-span-2">Time</span>
           <span className="col-span-2">Risk</span>
           <span className="col-span-5">Briefing</span>
@@ -68,17 +68,37 @@ export function LiveFeed({ briefings }: { briefings: BriefingLog[] }) {
           ) : briefings.map((log, i) => (
             <article
               key={log.briefing_id}
-              className="group grid cursor-pointer grid-cols-12 gap-2 px-4 py-4 transition-colors hover:bg-ink/[0.02]"
+              onClick={() => openTranscript(log)}
+              className="group flex cursor-pointer flex-col gap-3 px-4 py-4 transition-colors hover:bg-ink/[0.02] md:grid md:grid-cols-12 md:gap-2"
               style={{ animation: `dispatchSlide 0.3s ease-out ${i * 30}ms backwards` }}
             >
-              {/* Time */}
-              <div className="col-span-2 flex flex-col gap-0.5">
+              {/* Mobile header strip — time, risk, complaint, duration on one line */}
+              <div className="flex flex-wrap items-center justify-between gap-2 md:hidden">
+                <div className="flex items-center gap-2">
+                  <span className="font-edit-mono text-[11px] font-semibold text-ink">{formatTime(log.timestamp)}</span>
+                  <RiskBadge score={log.risk_score} />
+                  {hasComplaint(log) && (
+                    <span className="border border-amber-700/40 bg-amber-50 px-1.5 py-0.5 font-edit-mono text-[9px] font-bold uppercase tracking-widest text-amber-900">
+                      ⚠
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-display text-base leading-none text-ink">
+                    {Math.round(log.duration_seconds || 0)}<span className="text-[10px] font-edit-mono">s</span>
+                  </span>
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
+                </div>
+              </div>
+
+              {/* Time (md+ column) */}
+              <div className="hidden md:col-span-2 md:flex md:flex-col md:gap-0.5">
                 <span className="font-edit-mono text-[11px] font-semibold text-ink">{formatTime(log.timestamp)}</span>
                 <CRMSourceBadge provider={provider} className="w-fit" />
               </div>
 
-              {/* Risk + complaint */}
-              <div className="col-span-2 flex flex-col gap-1">
+              {/* Risk + complaint (md+ column) */}
+              <div className="hidden md:col-span-2 md:flex md:flex-col md:gap-1">
                 <RiskBadge score={log.risk_score} />
                 {hasComplaint(log) && (
                   <span className="border border-amber-700/40 bg-amber-50 px-1.5 py-0.5 text-center font-edit-mono text-[9px] font-bold uppercase tracking-widest text-amber-900">
@@ -87,12 +107,13 @@ export function LiveFeed({ briefings }: { briefings: BriefingLog[] }) {
                 )}
               </div>
 
-              {/* Main body */}
-              <div className="col-span-5">
-                <div className="flex items-center gap-2 font-serif text-sm">
+              {/* Main body — full width on mobile, col-span-5 on md+ */}
+              <div className="md:col-span-5">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-serif text-sm">
                   <span className="font-semibold text-ink">{scrub(log.rm_name, "name")}</span>
                   <span className="text-ink/40">→</span>
                   <span className="font-semibold text-ink">{scrub(log.client_name, "name")}</span>
+                  <CRMSourceBadge provider={provider} className="md:hidden" />
                 </div>
                 {log.suggested_pitch && (
                   <p className="mt-1 line-clamp-2 font-serif text-[12px] italic leading-snug text-ink/60">
@@ -110,8 +131,8 @@ export function LiveFeed({ briefings }: { briefings: BriefingLog[] }) {
                 )}
               </div>
 
-              {/* Duration */}
-              <div className="col-span-2 text-right">
+              {/* Duration (md+ only) */}
+              <div className="hidden text-right md:col-span-2 md:block">
                 <div className="font-display text-xl leading-none text-ink">
                   {Math.round(log.duration_seconds || 0)}<span className="text-xs font-edit-mono">s</span>
                 </div>
@@ -122,8 +143,8 @@ export function LiveFeed({ briefings }: { briefings: BriefingLog[] }) {
                 )}
               </div>
 
-              {/* Status */}
-              <div className="col-span-1 flex flex-col items-end justify-between gap-1">
+              {/* Status (md+ only) */}
+              <div className="hidden md:col-span-1 md:flex md:flex-col md:items-end md:justify-between md:gap-1">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
                 <button
                   onClick={(e) => { e.stopPropagation(); openTranscript(log); }}

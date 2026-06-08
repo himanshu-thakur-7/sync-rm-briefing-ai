@@ -23,26 +23,28 @@ export function DataTable({ rows, caption, source }: Props) {
           Table 1 · {caption}
         </figcaption>
       )}
-      <table className="w-full font-mono text-[12px]">
-        <thead>
-          <tr className="border-b border-ink/15 text-left text-[10px] uppercase tracking-widest text-ink/50">
-            <th className="px-4 py-2 font-normal">Metric</th>
-            <th className="px-4 py-2 font-normal">Without SYNC</th>
-            <th className="px-4 py-2 font-normal">With SYNC</th>
-            <th className="px-4 py-2 text-right font-normal">Δ</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i} className="border-b border-ink/10 last:border-b-0 odd:bg-ink/[0.015]">
-              <td className="px-4 py-3 text-ink/90">{row.label}</td>
-              <td className="px-4 py-3 text-ink/60 line-through">{row.before}</td>
-              <td className="px-4 py-3 font-semibold text-ink">{row.after}</td>
-              <td className="px-4 py-3 text-right font-medium text-emerald-700">{row.delta ?? "—"}</td>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[420px] font-mono text-[12px]">
+          <thead>
+            <tr className="border-b border-ink/15 text-left text-[10px] uppercase tracking-widest text-ink/50">
+              <th className="whitespace-nowrap px-3 py-2 font-normal sm:px-4">Metric</th>
+              <th className="whitespace-nowrap px-3 py-2 font-normal sm:px-4">Without SYNC</th>
+              <th className="whitespace-nowrap px-3 py-2 font-normal sm:px-4">With SYNC</th>
+              <th className="whitespace-nowrap px-3 py-2 text-right font-normal sm:px-4">Δ</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i} className="border-b border-ink/10 last:border-b-0 odd:bg-ink/[0.015]">
+                <td className="whitespace-nowrap px-3 py-3 text-ink/90 sm:px-4">{row.label}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-ink/60 line-through sm:px-4">{row.before}</td>
+                <td className="whitespace-nowrap px-3 py-3 font-semibold text-ink sm:px-4">{row.after}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-medium text-emerald-700 sm:px-4">{row.delta ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {source && (
         <div className="border-t border-ink/15 px-4 py-2 font-mono text-[10px] uppercase tracking-widest text-ink/40">
           {source}

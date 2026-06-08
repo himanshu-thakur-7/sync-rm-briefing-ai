@@ -199,15 +199,18 @@ export default function MorningBrief() {
               ) : (
                 <div className="border-y border-ink/15 divide-y divide-ink/10">
                   {history.map(h => (
-                    <div key={h.id} className="grid grid-cols-12 gap-3 px-1 py-3 font-edit-mono text-[11px]">
-                      <span className="col-span-3 text-ink/60">
+                    <div
+                      key={h.id}
+                      className="flex flex-col gap-1 px-2 py-3 font-edit-mono text-[11px] md:grid md:grid-cols-12 md:gap-3 md:px-1"
+                    >
+                      <span className="text-ink/60 md:col-span-3">
                         {h.started_at ? new Date(h.started_at).toLocaleString("en-IN") : "—"}
                       </span>
-                      <span className="col-span-3 truncate text-ink">{h.call_id}</span>
-                      <span className="col-span-2 text-ink/80">
+                      <span className="truncate text-ink md:col-span-3">{h.call_id}</span>
+                      <span className="text-ink/80 md:col-span-2">
                         {h.questions_asked}{" Q · "}{h.actions_executed}{" A"}
                       </span>
-                      <span className="col-span-4 truncate font-serif italic text-ink/70">
+                      <span className="font-serif italic text-ink/70 md:col-span-4 md:truncate">
                         {h.summary || "—"}
                       </span>
                     </div>
@@ -264,7 +267,7 @@ function ScheduleRow({
           {s.enabled ? `Next · ${nextStr}` : "Disabled"}
         </div>
       </div>
-      <div className="col-span-12 md:col-span-3 flex justify-end gap-2">
+      <div className="col-span-12 flex flex-wrap justify-start gap-2 md:col-span-3 md:justify-end">
         <button
           onClick={onTrigger}
           disabled={triggering}

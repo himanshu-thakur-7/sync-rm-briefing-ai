@@ -143,9 +143,12 @@ export default function IntegrationsIndex() {
                 </h2>
                 <div className="border-y border-ink/15 divide-y divide-ink/15">
                   {connections.map(conn => (
-                    <div key={conn.id} className="grid grid-cols-12 gap-4 px-1 py-4">
-                      <div className="col-span-12 md:col-span-4">
-                        <div className="flex items-center gap-2">
+                    <div
+                      key={conn.id}
+                      className="grid grid-cols-1 gap-3 px-2 py-4 sm:grid-cols-2 md:grid-cols-12 md:gap-4 md:px-1"
+                    >
+                      <div className="md:col-span-4">
+                        <div className="flex flex-wrap items-center gap-2">
                           <CRMSourceBadge provider={conn.provider} />
                           {conn.is_default && (
                             <span className="border border-ink/30 bg-ink text-cream px-1.5 py-0.5 font-edit-mono text-[9px] font-bold uppercase tracking-widest">
@@ -153,21 +156,21 @@ export default function IntegrationsIndex() {
                             </span>
                           )}
                         </div>
-                        <p className="mt-1 font-serif text-base text-ink">{conn.label}</p>
+                        <p className="mt-1 break-words font-serif text-base text-ink">{conn.label}</p>
                       </div>
-                      <div className="col-span-6 md:col-span-3 font-edit-mono text-[10px] uppercase tracking-widest text-ink/60">
+                      <div className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/60 md:col-span-3">
                         <p className="text-ink/40">Status</p>
-                        <p className="mt-0.5 text-ink/80">{conn.status}</p>
+                        <p className="mt-0.5 break-words text-ink/80">{conn.status}</p>
                       </div>
-                      <div className="col-span-6 md:col-span-3 font-edit-mono text-[10px] uppercase tracking-widest text-ink/60">
+                      <div className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/60 md:col-span-3">
                         <p className="text-ink/40">Last sync</p>
-                        <p className="mt-0.5 text-ink/80">
+                        <p className="mt-0.5 break-words text-ink/80">
                           {conn.last_sync_at
                             ? new Date(conn.last_sync_at).toLocaleString("en-IN")
                             : "Never"}
                         </p>
                       </div>
-                      <div className="col-span-12 md:col-span-2 font-edit-mono text-[10px] uppercase tracking-widest">
+                      <div className="font-edit-mono text-[10px] uppercase tracking-widest sm:col-span-2 md:col-span-2">
                         {conn.provisioning_missing > 0 ? (
                           <span className="text-amber-800">⚠ {conn.provisioning_missing} fields missing</span>
                         ) : (
