@@ -49,83 +49,109 @@ async def resolve_embed_url(connection_id: str, client_id: str, backend_url: str
             may_block_frame=False,
         )
 
+    # All of these real-CRM web apps set X-Frame-Options: DENY|SAMEORIGIN, so
+    # we route every embed through SYNC's own /native view (which pulls live
+    # data via the adapter) and keep the actual CRM URL as external_url for
+    # the "Open in {provider} ↗" link.
+
     if provider == "hubspot":
         portal_id = meta.get("portal_id", "")
-        url = (
+        external_url = (
             f"https://app.hubspot.com/contacts/{portal_id}/contact/{client_id}"
             if portal_id else f"https://app.hubspot.com/contacts/contact/{client_id}"
         )
         return EmbedSpec(
-            url=url,
+            url=f"/api/v1/embeds/native/{connection_id}/{client_id}",
             provider="hubspot",
             label="HubSpot",
-            may_block_frame=True,  # HubSpot blocks framing; prod would use UI Extension SDK
-            requires_auth_handoff=False,
+            sandbox_attrs="allow-scripts allow-same-origin",
+            may_block_frame=False,
+            metadata={"external_url": external_url},
         )
 
     if provider == "salesforce":
         instance_url = meta.get("instance_url", "").rstrip("/")
-        url = f"{instance_url}/lightning/r/Contact/{client_id}/view"
+        external_url = f"{instance_url}/lightning/r/Contact/{client_id}/view" if instance_url else None
         return EmbedSpec(
-            url=url,
+            url=f"/api/v1/embeds/native/{connection_id}/{client_id}",
             provider="salesforce",
             label="Salesforce",
-            sandbox_attrs="allow-scripts allow-same-origin allow-forms allow-popups",
-            may_block_frame=True,  # SF Lightning blocks framing; prod would use Canvas App
-            requires_auth_handoff=True,
+            sandbox_attrs="allow-scripts allow-same-origin",
+            may_block_frame=False,
+            metadata={"external_url": external_url} if external_url else {},
         )
 
     if provider == "zoho":
         org_id = meta.get("org_id", "")
         api_domain = meta.get("api_domain", "https://crm.zoho.in")
         base = api_domain.replace("www.zohoapis.", "crm.zoho.").replace("api-", "")
-        url = f"{base}/crm/{org_id}/tab/Contacts/{client_id}"
+        external_url = f"{base}/crm/{org_id}/tab/Contacts/{client_id}" if org_id else None
         return EmbedSpec(
-            url=url,
+            url=f"/api/v1/embeds/native/{connection_id}/{client_id}",
             provider="zoho",
             label="Zoho CRM",
-            may_block_frame=True,
+            sandbox_attrs="allow-scripts allow-same-origin",
+            may_block_frame=False,
+            metadata={"external_url": external_url} if external_url else {},
         )
 
     if provider == "dynamics":
         instance_url = meta.get("instance_url", "").rstrip("/")
-        url = f"{instance_url}/main.aspx?pagetype=entityrecord&etn=contact&id={client_id}"
+        external_url = (
+            f"{instance_url}/main.aspx?pagetype=entityrecord&etn=contact&id={client_id}"
+            if instance_url else None
+        )
         return EmbedSpec(
-            url=url,
+            url=f"/api/v1/embeds/native/{connection_id}/{client_id}",
             provider="dynamics",
             label="Dynamics 365",
-            may_block_frame=True,
+            sandbox_attrs="allow-scripts allow-same-origin",
+            may_block_frame=False,
+            metadata={"external_url": external_url} if external_url else {},
         )
 
     if provider == "freshworks":
         subdomain = meta.get("subdomain", "")
-        url = f"https://{subdomain}.myfreshworks.com/crm/sales/contacts/{client_id}"
+        external_url = (
+            f"https://{subdomain}.myfreshworks.com/crm/sales/contacts/{client_id}"
+            if subdomain else None
+        )
         return EmbedSpec(
-            url=url,
+            url=f"/api/v1/embeds/native/{connection_id}/{client_id}",
             provider="freshworks",
             label="Freshworks CRM",
-            may_block_frame=True,
+            sandbox_attrs="allow-scripts allow-same-origin",
+            may_block_frame=False,
+            metadata={"external_url": external_url} if external_url else {},
         )
 
     if provider == "leadsquared":
         region = meta.get("region", "in21")
-        url = f"https://{region}.leadsquared.com/Pages/LeadDetails.aspx?LeadId={client_id}"
+        external_url = f"https://{region}.leadsquared.com/Pages/LeadDetails.aspx?LeadId={client_id}"
         return EmbedSpec(
-            url=url,
+            url=f"/api/v1/embeds/native/{connection_id}/{client_id}",
             provider="leadsquared",
             label="LeadSquared",
-            may_block_frame=True,
+            sandbox_attrs="allow-scripts allow-same-origin",
+            may_block_frame=False,
+            metadata={"external_url": external_url},
         )
 
     if provider == "pipedrive":
         from config import settings
         domain = meta.get("company_domain") or settings.pipedrive_company_domain
-        url = f"https://{domain}.pipedrive.com/person/{client_id}" if domain else "#"
+        external_url = f"https://{domain}.pipedrive.com/person/{client_id}" if domain else None
+        # Pipedrive sets X-Frame-Options: DENY, so the real web app can't be
+        # iframed. Instead, point at SYNC's native view which pulls live data
+        # from the Pipedrive REST API and renders it through our template —
+        # the external Pipedrive URL is preserved for the "Open in CRM ↗" link.
         return EmbedSpec(
-            url=url,
+            url=f"/api/v1/embeds/native/{connection_id}/{client_id}",
             provider="pipedrive",
             label="Pipedrive",
-            may_block_frame=True,  # Pipedrive sets X-Frame-Options: DENY
+            sandbox_attrs="allow-scripts allow-same-origin",
+            may_block_frame=False,
+            metadata={"external_url": external_url} if external_url else {},
         )
 
     # Unknown provider — return a blank spec so the UI can show an "open in CRM" link

@@ -9,6 +9,7 @@ import { CRMSourceBadge } from "./CRMSourceBadge";
 interface EmbedSpec {
   url: string; provider: string; label: string;
   sandbox_attrs: string; may_block_frame: boolean;
+  external_url?: string | null;
 }
 
 interface Props {
@@ -68,9 +69,15 @@ export function CRMEmbedPanel({ connectionId, clientId, provider }: Props) {
             Contact ID · {clientId}
           </span>
         </div>
-        {spec && !spec.may_block_frame && (
-          <a href={spec.url} target="_blank" rel="noopener noreferrer"
-            className="text-ink/50 hover:text-ink">
+        {spec && (spec.external_url || (!spec.may_block_frame && spec.url.startsWith("http"))) && (
+          <a
+            href={spec.external_url ?? spec.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 font-edit-mono text-[9px] uppercase tracking-widest text-ink/50 hover:text-ink"
+            title={`Open in ${spec.label}`}
+          >
+            Open in {spec.label}
             <ExternalLink className="h-3 w-3" />
           </a>
         )}
@@ -83,20 +90,23 @@ export function CRMEmbedPanel({ connectionId, clientId, provider }: Props) {
           </div>
         )}
 
+        {/* Backend always returns a SYNC-hosted iframe-friendly URL now — for
+            providers whose real web app blocks framing, we render their data
+            through our own native view. may_block_frame should only ever be
+            true for unknown/unhandled providers. */}
         {spec && spec.may_block_frame && (
           <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
             <CRMSourceBadge provider={spec.provider} />
             <p className="font-serif text-sm italic text-ink/60">
-              {spec.label} restricts third-party embedding.<br />
-              <span className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/40">
-                Production would use the {spec.label} UI Extension SDK.
-              </span>
+              No embed view configured for {spec.label} yet.
             </p>
-            <a href={spec.url} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 border-2 border-ink bg-paper px-4 py-2 font-edit-mono text-[10px] uppercase tracking-widest text-ink hover:bg-ink hover:text-cream">
-              <ExternalLink className="h-3 w-3" />
-              Open in {spec.label}
-            </a>
+            {spec.external_url && (
+              <a href={spec.external_url} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 border-2 border-ink bg-paper px-4 py-2 font-edit-mono text-[10px] uppercase tracking-widest text-ink hover:bg-ink hover:text-cream">
+                <ExternalLink className="h-3 w-3" />
+                Open in {spec.label}
+              </a>
+            )}
           </div>
         )}
 
