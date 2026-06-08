@@ -62,7 +62,32 @@ async def seed_default_connections() -> None:
     # dashboard's source switcher lands on Pipedrive out of the box.
     try:
         from config import settings
-        if settings.pipedrive_api_token and settings.pipedrive_company_domain:
+        pipedrive_configured = bool(settings.pipedrive_api_token and settings.pipedrive_company_domain)
+
+        # SAFETY: if a Pipedrive row was persisted previously (e.g. dev sync.db
+        # carried into prod) but the env no longer has credentials, demote it
+        # back to non-default and re-promote the sandbox so every API call
+        # doesn't 500 with 401-from-Pipedrive.
+        if not pipedrive_configured:
+            async with get_session() as session:
+                stale = (await session.exec(
+                    select(CRMConnection).where(CRMConnection.id == "conn_pipedrive_demo")
+                )).first()
+                if stale is not None and stale.is_default:
+                    stale.is_default = False
+                    session.add(stale)
+                    sandbox = (await session.exec(
+                        select(CRMConnection).where(CRMConnection.id == "conn_lsq_sandbox")
+                    )).first()
+                    if sandbox is not None:
+                        sandbox.is_default = True
+                        session.add(sandbox)
+                    logger.warning(
+                        "Pipedrive token missing in env — demoted conn_pipedrive_demo "
+                        "and re-promoted conn_lsq_sandbox to default."
+                    )
+
+        if pipedrive_configured:
             async with get_session() as session:
                 row = (await session.exec(
                     select(CRMConnection).where(CRMConnection.id == "conn_pipedrive_demo")

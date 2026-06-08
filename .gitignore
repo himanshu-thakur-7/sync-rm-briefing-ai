@@ -55,3 +55,9 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local SQLite — must never ship to prod
+artifacts/sync-backend/sync.db
+artifacts/sync-backend/*.db
+artifacts/sync-backend/*.db-journal
+artifacts/sync-backend/.secret.key
