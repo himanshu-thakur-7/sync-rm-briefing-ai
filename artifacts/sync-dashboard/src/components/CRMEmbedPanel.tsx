@@ -3,8 +3,9 @@
  * Editorial chrome around it. Uses relative URLs for Vite proxy.
  */
 import { useEffect, useRef, useState } from "react";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { ExternalLink, Loader2, RefreshCw, X } from "lucide-react";
 import { CRMSourceBadge } from "./CRMSourceBadge";
+import { useWebSocket, WebSocketMessage } from "@/hooks/use-websocket";
 
 interface EmbedSpec {
   url: string; provider: string; label: string;
@@ -19,9 +20,13 @@ interface Props {
   onClose?: () => void;
 }
 
-export function CRMEmbedPanel({ connectionId, clientId, provider }: Props) {
+export function CRMEmbedPanel({ connectionId, clientId, provider, onClose }: Props) {
   const [spec, setSpec] = useState<EmbedSpec | null>(null);
   const [loading, setLoading] = useState(true);
+  // Bump this counter to force the iframe to reload (e.g. after a voice
+  // command logged a note / created a task in the live CRM).
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [justRefreshed, setJustRefreshed] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -59,28 +64,84 @@ export function CRMEmbedPanel({ connectionId, clientId, provider }: Props) {
       });
   }, [connectionId, clientId, provider]);
 
+  // Live-refresh: when a voice-driven CRM action lands for THIS client
+  // (note logged / task created / complaint updated etc.), bump the iframe
+  // src cache-buster so the panel re-fetches and renders the new state.
+  useWebSocket({
+    onMessage: (msg: WebSocketMessage) => {
+      const REFRESH_EVENTS = new Set([
+        "command_executed",
+        "concierge_action_executed",
+        "morning_brief_action_executed",
+        "connection_synced",
+      ]);
+      if (!REFRESH_EVENTS.has(msg.type)) return;
+      // Refresh if the event mentions this client OR if it's a broad
+      // connection-level sync (then we re-pull regardless).
+      const eventClientId = msg.data?.client_id;
+      if (eventClientId && eventClientId !== clientId) return;
+      setRefreshKey(k => k + 1);
+      setJustRefreshed(true);
+      setTimeout(() => setJustRefreshed(false), 1800);
+    },
+  });
+
+  const manualRefresh = () => {
+    setRefreshKey(k => k + 1);
+    setJustRefreshed(true);
+    setTimeout(() => setJustRefreshed(false), 1200);
+  };
+
+  // Append refreshKey as cache-buster so iframe actually re-fetches.
+  const iframeSrc = spec
+    ? spec.url + (spec.url.includes("?") ? "&" : "?") + `_=${refreshKey}`
+    : "";
+
   return (
     <div className="flex h-full flex-col">
       {/* Sub-header with provider */}
-      <div className="flex items-center justify-between border-b border-ink/15 bg-ink/[0.01] px-3 py-2">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2 border-b border-ink/15 bg-ink/[0.01] px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
           <CRMSourceBadge provider={spec?.provider ?? provider} />
-          <span className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/60">
+          <span className="truncate font-edit-mono text-[10px] uppercase tracking-widest text-ink/60">
             Contact ID · {clientId}
           </span>
+          {justRefreshed && (
+            <span className="inline-flex items-center gap-1 border border-emerald-700/40 bg-emerald-50 px-1.5 py-0.5 font-edit-mono text-[9px] font-bold uppercase tracking-widest text-emerald-800">
+              ● Live
+            </span>
+          )}
         </div>
-        {spec && (spec.external_url || (!spec.may_block_frame && spec.url.startsWith("http"))) && (
-          <a
-            href={spec.external_url ?? spec.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 font-edit-mono text-[9px] uppercase tracking-widest text-ink/50 hover:text-ink"
-            title={`Open in ${spec.label}`}
+        <div className="flex shrink-0 items-center gap-2">
+          {spec && (spec.external_url || (!spec.may_block_frame && spec.url.startsWith("http"))) && (
+            <a
+              href={spec.external_url ?? spec.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-edit-mono text-[9px] uppercase tracking-widest text-ink/50 hover:text-ink"
+              title={`Open in ${spec.label}`}
+            >
+              <span className="hidden sm:inline">Open in {spec.label}</span>
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+          <button
+            onClick={manualRefresh}
+            title="Refresh contact data"
+            className="flex h-6 w-6 items-center justify-center border border-ink/30 text-ink/60 hover:bg-ink hover:text-paper"
           >
-            Open in {spec.label}
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        )}
+            <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+          </button>
+          {onClose && (
+            <button
+              onClick={onClose}
+              title="Close panel"
+              className="flex h-6 w-6 items-center justify-center border border-ink/30 text-ink/60 hover:bg-ink hover:text-paper"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="relative flex-1 bg-paper">
@@ -113,7 +174,8 @@ export function CRMEmbedPanel({ connectionId, clientId, provider }: Props) {
         {spec && !spec.may_block_frame && (
           <iframe
             ref={iframeRef}
-            src={spec.url}
+            key={`${spec.url}-${refreshKey}`}
+            src={iframeSrc}
             sandbox={spec.sandbox_attrs}
             className="h-full w-full border-0"
             title={`${spec.label} Contact View`}
@@ -153,7 +215,7 @@ export function CRMEmbedRail({ connections, clientId, defaultProvider, onClose }
           connectionId={active.id}
           clientId={clientId}
           provider={active.provider}
-          onClose={connections.length === 1 ? onClose : undefined}
+          onClose={onClose}
         />
       </div>
     </div>
