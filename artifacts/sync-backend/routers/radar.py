@@ -153,7 +153,9 @@ async def list_plays(
 # ─────────────────────────────── place call ───────────────────────────────
 
 @router.post("/plays/{play_id}/call", response_model=PlayOut)
-async def place_save_call(play_id: int, body: CallRequest):
+async def place_save_call(play_id: int, body: Optional[CallRequest] = None):
+    # Treat missing/empty body the same as one with all-None overrides.
+    body = body or CallRequest()
     """Generate the outreach brief and place the outbound save call."""
     async with get_session() as session:
         play = (await session.exec(select(SaveCallPlay).where(SaveCallPlay.id == play_id))).first()

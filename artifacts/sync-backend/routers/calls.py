@@ -84,6 +84,11 @@ async def sync_now(request: SyncRequest):
         "cross_sell_product": primary_cs.product if primary_cs else "",
         "secondary_pitch": secondary_cs.pitch_angle[:150] if secondary_cs else "",
         "friendly_closer": friendly_closer,
+        # Back-compat alias — agents created before the R4-A rename still
+        # declare `hinglish_closer` in their custom_variables. Send the same
+        # value under both names so old + new agents both work without
+        # having to re-provision the Ringg agent definition.
+        "hinglish_closer": friendly_closer,
     }
 
     # 4. Initiate Ringg call

@@ -137,6 +137,15 @@ async def generate_outreach_brief(client: ClientFullProfile, play: dict) -> dict
             "friendly_closer": "That's all from us — we're here whenever you need us. Have a great day.",
         }
 
+    def _ensure_closer_aliases(d: dict) -> dict:
+        """Both `friendly_closer` (new) and `hinglish_closer` (legacy) must be
+        present in the payload — agents created before R4-A still REQUIRE
+        the old name. Always mirror the value to both keys."""
+        closer = d.get("friendly_closer") or d.get("hinglish_closer") or "Have a great day."
+        d["friendly_closer"] = closer
+        d["hinglish_closer"] = closer
+        return d
+
     openai_key = os.environ.get("OPENAI_API_KEY", "")
     base = {
         "client_name": p.name,
@@ -147,7 +156,7 @@ async def generate_outreach_brief(client: ClientFullProfile, play: dict) -> dict
     }
 
     if not openai_key:
-        return {**base, **_template()}
+        return _ensure_closer_aliases({**base, **_template()})
 
     try:
         from openai import AsyncOpenAI
@@ -177,10 +186,11 @@ Generate the outreach JSON now.
             temperature=0.6,
         )
         parsed = _json.loads(resp.choices[0].message.content)
-        return {**base, **parsed}
+        out = {**base, **parsed}
     except Exception as e:
         logger.warning(f"Outreach brief generation failed: {e}. Using template.")
-        return {**base, **_template()}
+        out = {**base, **_template()}
+    return _ensure_closer_aliases(out)
 
 
 async def generate_briefing(client: ClientFullProfile) -> str:

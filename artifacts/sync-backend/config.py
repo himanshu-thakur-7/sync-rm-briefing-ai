@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     ringg_from_number_id: str = ""
     ringg_outreach_agent_id: str = ""  # client-facing "SYNC Outreach" agent
     ringg_morning_brief_agent_id: str = ""  # RM-facing "SYNC Morning Brief" conversational agent
+    ringg_concierge_agent_id: str = ""      # R4: inbound "SYNC Concierge" — RM dials in, asks about any client
+    ringg_inbound_number: str = ""          # The DID printed in the dashboard (display only — Ringg routes by agent)
 
     # Risk Radar
     radar_autopilot_default: bool = False

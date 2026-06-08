@@ -57,6 +57,8 @@ PERSON_FIELD_LABELS = {
     "risk_score": "Risk Score",
     "risk_factors": "Risk Factors",
     "last_rm_interaction_date": "Last RM Interaction Date",
+    "date_of_birth": "Date of Birth",
+    "city": "City",
     "cross_sell_product_1": "Cross-Sell Product 1",
     "cross_sell_pitch_1": "Cross-Sell Pitch 1",
     "cross_sell_value_1": "Cross-Sell Value 1",
@@ -83,6 +85,11 @@ class PipedriveCRMAdapter(CRMAdapter):
         # Caches for the per-tenant 40-char custom-field keys
         self._person_keys: dict[str, str] = {}
         self._deal_keys: dict[str, str] = {}
+        # Enum option-id → label maps, keyed by the 40-char custom-field key.
+        # Pipedrive enum fields store the option's numeric id on the record,
+        # not the human-readable label. We resolve at read time.
+        self._person_enum_options: dict[str, dict[str, str]] = {}
+        self._deal_enum_options: dict[str, dict[str, str]] = {}
 
     # ─── HTTP plumbing ───────────────────────────────────────────────────
 
@@ -151,9 +158,21 @@ class PipedriveCRMAdapter(CRMAdapter):
                 k = label_to_key.get(label.lower())
                 if k:
                     self._person_keys[friendly] = k
+            # Cache enum option-id → label maps for every enum field on Person
+            for f in fields:
+                if f.get("field_type") == "enum" and f.get("key"):
+                    opts = {str(o.get("id")): o.get("label", "") for o in (f.get("options") or [])}
+                    self._person_enum_options[f["key"]] = opts
         except Exception as e:
             logger.warning("Pipedrive person field metadata load failed: %s", e)
         return self._person_keys
+
+    def _resolve_enum(self, options_map: dict[str, dict[str, str]], key: str, value) -> str:
+        """Translate a Pipedrive enum option id back to its label."""
+        if value is None or value == "":
+            return ""
+        opts = options_map.get(key) or {}
+        return opts.get(str(value), str(value))
 
     async def _load_deal_keys(self) -> dict[str, str]:
         if self._deal_keys:
@@ -162,6 +181,11 @@ class PipedriveCRMAdapter(CRMAdapter):
             data = await self._get("/dealFields", params={"limit": 500})
             fields = (data.get("data") or []) if isinstance(data, dict) else []
             label_to_key = {f.get("name", "").lower(): f.get("key", "") for f in fields if f.get("key")}
+            # Cache enum option-id → label maps for every enum field on Deal
+            for f in fields:
+                if f.get("field_type") == "enum" and f.get("key"):
+                    opts = {str(o.get("id")): o.get("label", "") for o in (f.get("options") or [])}
+                    self._deal_enum_options[f["key"]] = opts
             for friendly, label in DEAL_FIELD_LABELS.items():
                 k = label_to_key.get(label.lower())
                 if k:
@@ -186,17 +210,35 @@ class PipedriveCRMAdapter(CRMAdapter):
 
         # name field: Pipedrive returns "first_name"/"last_name" + "name"
         full_name = p.get("name") or " ".join(filter(None, [p.get("first_name"), p.get("last_name")]))
-        org = p.get("org_name") or (p.get("org_id", {}).get("name") if isinstance(p.get("org_id"), dict) else "")
 
-        # Title is stored on a Person via job_title (a built-in field on some
-        # plans; otherwise via a custom field labeled "Job Title" or similar).
-        occupation = p.get("job_title") or cf("job_title") or ""
+        # Company lives on the related Organization. /persons/{id} returns
+        # `org_id` as a dict ({"name": "..."}); /persons (list) returns it as
+        # an int. Both endpoints also include `org_name` separately. We handle
+        # all three shapes.
+        org_id = p.get("org_id")
+        if isinstance(org_id, dict):
+            org = org_id.get("name", "") or ""
+        else:
+            org = p.get("org_name") or ""
 
-        # Pipedrive doesn't have a built-in DOB, so age is best-effort from the
-        # birthday custom field or set to 0.
+        occupation = p.get("job_title") or ""
+
+        # Age from the Date of Birth custom field (Pipedrive has no built-in DOB).
         age = 0
+        dob_raw = cf("date_of_birth")
+        if dob_raw:
+            try:
+                dob_d = datetime.strptime(str(dob_raw)[:10], "%Y-%m-%d").date()
+                age = (date.today() - dob_d).days // 365
+            except ValueError:
+                pass
 
-        risk = cf("risk_score") or "low"
+        # City — prefer the custom field, fall back to the built-in postal field
+        city = cf("city") or p.get("postal_address_locality", "") or ""
+
+        # Risk score is an enum — resolve option id → label
+        risk_key = keys.get("risk_score", "")
+        risk = self._resolve_enum(self._person_enum_options, risk_key, p.get(risk_key)) or "low"
 
         return ClientProfile(
             client_id=str(p.get("id", "")),
@@ -204,17 +246,17 @@ class PipedriveCRMAdapter(CRMAdapter):
             age=age,
             occupation=occupation,
             company=org,
-            city=p.get("postal_address_locality", "") or "",
+            city=city,
             risk_score=risk,
         )
 
     async def _person_to_risk(self, p: dict) -> RiskAssessment:
         keys = await self._load_person_keys()
-        score = ((p.get(keys.get("risk_score", "")) or "")
-                 if isinstance(p.get(keys.get("risk_score", "")), str) else "low")
+        risk_key = keys.get("risk_score", "")
+        score = self._resolve_enum(self._person_enum_options, risk_key, p.get(risk_key)) or "low"
         factors_raw = p.get(keys.get("risk_factors", "")) or ""
         factors = [f.strip() for f in str(factors_raw).split("\n") if f.strip()]
-        return RiskAssessment(score=score or "low", factors=factors)
+        return RiskAssessment(score=score, factors=factors)
 
     async def _person_to_cross_sell(self, p: dict) -> list[CrossSellOpportunity]:
         keys = await self._load_person_keys()
@@ -246,9 +288,11 @@ class PipedriveCRMAdapter(CRMAdapter):
         tenure = int(float(d.get(keys.get("tenure_months", "")) or 0))
         next_due_raw = d.get(keys.get("next_due_date", "")) or ""
         history_raw = d.get(keys.get("payment_history", "")) or ""
-        product_type = d.get(keys.get("product_type", "")) or "personal_loan"
+        # Product type is an enum — resolve option id → label
+        pt_key = keys.get("product_type", "")
+        product_type = self._resolve_enum(self._deal_enum_options, pt_key, d.get(pt_key)) or "personal_loan"
         return LoanProduct(
-            product_type=str(product_type),
+            product_type=product_type,
             principal=principal,
             emi=emi,
             tenure_months=tenure,
@@ -335,8 +379,10 @@ class PipedriveCRMAdapter(CRMAdapter):
             return []
 
     async def get_interactions(self, client_id: str) -> tuple[list[Interaction], list[Complaint], int]:
+        # Fetch ALL activities (done + not-done). Open complaints are
+        # represented as not-done tasks; filtering by done=1 would hide them.
         try:
-            data = await self._get(f"/persons/{client_id}/activities", params={"limit": 30, "done": 1})
+            data = await self._get(f"/persons/{client_id}/activities", params={"limit": 50})
             activities = (data.get("data") or []) if isinstance(data, dict) else []
         except Exception as e:
             logger.warning("Pipedrive activities fetch failed: %s", e)

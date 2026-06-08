@@ -56,3 +56,46 @@ async def seed_default_connections() -> None:
                 if row.is_default:
                     row.is_default = False
                     session.add(row)
+
+    # ── R4: Pipedrive — seed a live connection if credentials are configured.
+    # If CRM_ADAPTER=pipedrive we also promote it to is_default=True so the
+    # dashboard's source switcher lands on Pipedrive out of the box.
+    try:
+        from config import settings
+        if settings.pipedrive_api_token and settings.pipedrive_company_domain:
+            async with get_session() as session:
+                row = (await session.exec(
+                    select(CRMConnection).where(CRMConnection.id == "conn_pipedrive_demo")
+                )).first()
+                wants_default = settings.crm_adapter == "pipedrive"
+                if row is None:
+                    session.add(CRMConnection(
+                        id="conn_pipedrive_demo",
+                        provider="pipedrive",
+                        label=f"Pipedrive · {settings.pipedrive_company_domain}",
+                        status="active",
+                        auth_method="api_key",
+                        metadata_json={
+                            "company_domain": settings.pipedrive_company_domain,
+                            "description": "Demo CRM — personal-token auth, fully populated",
+                        },
+                        is_default=wants_default,
+                        created_at=datetime.now(timezone.utc),
+                        updated_at=datetime.now(timezone.utc),
+                    ))
+                    logger.info("Seeded Pipedrive connection (conn_pipedrive_demo, default=%s).", wants_default)
+                elif wants_default and not row.is_default:
+                    row.is_default = True
+                    session.add(row)
+                    logger.info("Promoted conn_pipedrive_demo to default (CRM_ADAPTER=pipedrive).")
+                # If Pipedrive is the default, unflag any other defaults
+                if wants_default:
+                    others = list((await session.exec(
+                        select(CRMConnection).where(CRMConnection.id != "conn_pipedrive_demo")
+                    )).all())
+                    for o in others:
+                        if o.is_default:
+                            o.is_default = False
+                            session.add(o)
+    except Exception as e:
+        logger.warning("Pipedrive seed skipped: %s", e)

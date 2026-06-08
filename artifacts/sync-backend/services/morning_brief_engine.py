@@ -221,6 +221,14 @@ async def generate_brief_payload(
     """
     template = _template_payload(agenda, language_style, company_name)
 
+    # Back-compat: morning-brief agents created before R4-A still declare
+    # `hinglish_closer` in custom_vars. Mirror the closer value into it so
+    # Ringg's required-variables check passes for both old + new agents.
+    if "closer" in template and "hinglish_closer" not in template:
+        template["hinglish_closer"] = template["closer"]
+    if "friendly_closer" not in template:
+        template["friendly_closer"] = template["closer"]
+
     openai_key = os.environ.get("OPENAI_API_KEY", "")
     if not openai_key:
         return template

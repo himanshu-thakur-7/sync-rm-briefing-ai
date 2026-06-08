@@ -16,6 +16,7 @@ from routers import embeds as embeds_router
 from routers import voice_commands as voice_router
 from routers import radar as radar_router
 from routers import morning_brief as morning_brief_router
+from routers import concierge as concierge_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -93,6 +94,7 @@ app.include_router(embeds_router.router)
 app.include_router(voice_router.router)
 app.include_router(radar_router.router)
 app.include_router(morning_brief_router.router)
+app.include_router(concierge_router.router)
 
 
 @app.get("/api/healthz", tags=["health"])

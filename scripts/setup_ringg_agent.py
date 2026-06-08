@@ -17,6 +17,43 @@ from config import settings  # noqa: E402
 from services.ringg_service import ringg_service  # noqa: E402
 
 
+def _assemble_prompt(config: dict) -> str:
+    """Combine our structured config fields into a single agent_prompt string.
+
+    Ringg's create_agent endpoint silently ignores our `introduction_and_objective`,
+    `response_guidelines`, `task`, `faq`, and `sample_conversations` fields — only
+    a single combined `agent_prompt` string is honoured. Without this, every newly
+    provisioned agent boots with an empty prompt and goes silent on outbound calls.
+    """
+    parts = []
+    if obj := config.get("introduction_and_objective"):
+        parts.append(obj.strip())
+    if task := config.get("task"):
+        parts.append("\n# TASK\n\n" + task.strip())
+    if guide := config.get("response_guidelines"):
+        parts.append("\n# RESPONSE GUIDELINES\n\n" + guide.strip())
+    if faq := config.get("faq"):
+        parts.append("\n# FAQ\n\n" + faq.strip())
+    if conv := config.get("sample_conversations"):
+        parts.append("\n# SAMPLE CONVERSATIONS\n\n" + conv.strip())
+    return "\n".join(parts).strip()
+
+
+async def _push_prompt_and_intro(agent_id: str, config: dict, name: str) -> None:
+    """After create_agent, patch the agent in place with the real prompt +
+    intro_message so it actually has instructions and a proper opening line."""
+    if not agent_id:
+        return
+    prompt = _assemble_prompt(config)
+    if prompt:
+        ok = await ringg_service.patch_agent(agent_id, "edit_prompt", agent_prompt=prompt)
+        print(f"  prompt push ({name}): {'✓' if ok else 'FAILED'}")
+    intro = config.get("intro_message")
+    if intro:
+        ok = await ringg_service.patch_agent(agent_id, "edit_intro_message", intro_message=intro)
+        print(f"  intro push  ({name}): {'✓' if ok else 'FAILED'}")
+
+
 async def main() -> None:
     """Create the Ringg agent and print the generated agent id."""
     if not settings.ringg_api_key:
@@ -96,6 +133,10 @@ async def main() -> None:
     webhook_url = f"{settings.backend_url}/api/v1/webhooks/ringg" if settings.backend_url else ""
     from_number_id = settings.ringg_from_number_id
 
+    # Ringg silently drops structured prompt fields on create — push them via
+    # edit_prompt + edit_intro_message so the agent actually has instructions.
+    await _push_prompt_and_intro(agent_id, config, "briefing")
+
     if agent_id and from_number_id:
         await ringg_service.attach_from_number(agent_id, from_number_id)
     if agent_id and webhook_url:
@@ -111,6 +152,7 @@ async def main() -> None:
             outreach_config["voice_id"] = default_voice_id
         outreach_id = await ringg_service.create_agent(outreach_config)
         print(f"RINGG_OUTREACH_AGENT_ID={outreach_id}")
+        await _push_prompt_and_intro(outreach_id, outreach_config, "outreach")
         if outreach_id and from_number_id:
             await ringg_service.attach_from_number(outreach_id, from_number_id)
         if outreach_id and webhook_url:
@@ -126,6 +168,7 @@ async def main() -> None:
             brief_config["voice_id"] = default_voice_id
         brief_id = await ringg_service.create_agent(brief_config)
         print(f"RINGG_MORNING_BRIEF_AGENT_ID={brief_id}")
+        await _push_prompt_and_intro(brief_id, brief_config, "morning_brief")
         if brief_id and from_number_id:
             await ringg_service.attach_from_number(brief_id, from_number_id)
         if brief_id and webhook_url:
@@ -137,6 +180,28 @@ async def main() -> None:
             "(ask_crm, log_action). Their endpoints are templated as "
             "{{mid_call_tool_url}}/{{call_id}}/ask and /act — they're filled "
             "in by ringg_service.initiate_morning_brief_call at call time."
+        )
+
+    # ── Round 4: create the inbound SYNC Concierge agent ─────────────────
+    concierge_path = ROOT / "ringg" / "concierge-agent-config.json"
+    if concierge_path.exists():
+        concierge_config = json.loads(concierge_path.read_text(encoding="utf-8"))
+        if default_voice_id and "voice_id" not in concierge_config:
+            concierge_config["voice_id"] = default_voice_id
+        concierge_id = await ringg_service.create_agent(concierge_config)
+        print(f"RINGG_CONCIERGE_AGENT_ID={concierge_id}")
+        await _push_prompt_and_intro(concierge_id, concierge_config, "concierge")
+        if concierge_id and from_number_id:
+            await ringg_service.attach_from_number(concierge_id, from_number_id)
+        if concierge_id and webhook_url:
+            ok = await ringg_service.setup_webhooks(concierge_id, webhook_url)
+            if ok:
+                print("Webhooks configured for concierge agent")
+        print(
+            "\nINBOUND SETUP: In the Ringg dashboard, attach an inbound phone "
+            "number to the Concierge agent. Then set RINGG_INBOUND_NUMBER in "
+            ".env to the human-readable DID (e.g. +91...) so the dashboard "
+            "ConciergePanel displays the number to dial."
         )
 
 

@@ -274,6 +274,31 @@ class RinggService:
             logger.info(f"Uploaded knowledge base: {kb_id}")
             return kb_id
 
+    async def patch_agent(self, agent_id: str, operation: str, **fields) -> bool:
+        """Generic PATCH /agent/v1/ wrapper for Ringg's operation-based update API.
+        Use for `edit_prompt`, `edit_intro_message`, `edit_voice`, etc.
+
+        Ringg's API works via a single endpoint with an `operation` field; each
+        operation has its own additional required fields (e.g. edit_prompt needs
+        `agent_prompt`, edit_intro_message needs `intro_message`).
+        """
+        if not agent_id:
+            return False
+        payload = {"operation": operation, "agent_id": agent_id, **fields}
+        async with self._client(timeout=15) as client:
+            try:
+                resp = await client.patch(
+                    f"{self.BASE_URL}/agent/v1/",
+                    json=payload, headers=RINGG_HEADERS,
+                )
+                if 200 <= resp.status_code < 300:
+                    return True
+                logger.warning("patch_agent %s on %s failed: %s %s",
+                               operation, agent_id, resp.status_code, resp.text[:200])
+            except Exception as e:
+                logger.warning("patch_agent %s on %s error: %s", operation, agent_id, e)
+        return False
+
     async def attach_from_number(self, agent_id: str, from_number_id: str) -> bool:
         """
         PATCH /agent/v1 (operation=edit_outbound_from_number_ids).
