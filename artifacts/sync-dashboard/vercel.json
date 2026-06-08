@@ -5,6 +5,9 @@
   "outputDirectory": "dist/public",
   "framework": null,
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/api/:path*", "destination": "https://sync-backend-u9rv.onrender.com/api/:path*" },
+    { "source": "/v1/:path*", "destination": "https://sync-backend-u9rv.onrender.com/v1/:path*" },
+    { "source": "/ws/:path*", "destination": "https://sync-backend-u9rv.onrender.com/ws/:path*" },
+    { "source": "/((?!api/|v1/|ws/).*)", "destination": "/index.html" }
   ]
 }
