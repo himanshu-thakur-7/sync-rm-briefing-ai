@@ -112,7 +112,7 @@ export default function Dashboard() {
 
       {/* CRM embed rail */}
       {embedOpen && activeClientId && activeConnections.length > 0 && (
-        <div className="fixed inset-y-0 right-0 z-40 w-[440px] border-l-2 border-ink bg-paper shadow-2xl">
+        <div className="fixed inset-y-0 right-0 z-[60] w-full max-w-[440px] border-l-2 border-ink bg-paper shadow-2xl">
           <div className="flex h-full flex-col">
             <div className="flex items-center justify-between border-b border-ink bg-ink/[0.02] px-4 py-3">
               <span className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/70">
