@@ -69,7 +69,7 @@ export function Header({ isConnected, latencyMs, activeClientId, rmName }: Props
             <LiveIndicator isConnected={isConnected} latencyMs={latencyMs} />
             <span className="hidden md:block h-6 w-px bg-ink/15" />
             <ConnectionSwitcher />
-            {activeClientId && <VoiceCommandBar clientId={activeClientId} rmName={rmName} />}
+            <VoiceCommandBar clientId={activeClientId} rmName={rmName} />
             <PiiScrubToggle />
             <button
               onClick={() => navigate("/settings/integrations")}

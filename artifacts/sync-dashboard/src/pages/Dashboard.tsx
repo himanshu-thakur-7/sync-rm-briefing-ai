@@ -11,6 +11,8 @@ import {
 import { useWebSocket, WebSocketMessage } from "@/hooks/use-websocket";
 import { Header } from "@/components/Header";
 import { MetricCards } from "@/components/MetricCards";
+import { RoiLedger } from "@/components/RoiLedger";
+import { CoachingOverlay } from "@/components/CoachingOverlay";
 import { SyncPanel } from "@/components/SyncPanel";
 import { LiveFeed } from "@/components/LiveFeed";
 import { Comparison } from "@/components/Comparison";
@@ -75,6 +77,11 @@ export default function Dashboard() {
           <p className="hidden font-serif text-sm italic text-ink/60 md:block">
             All times IST · All data via the active CRM connection.
           </p>
+        </div>
+
+        {/* ROI ledger — the money counter + demo-day seed control */}
+        <div className="mb-5">
+          <RoiLedger />
         </div>
 
         {/* KPI strip */}
@@ -149,6 +156,9 @@ export default function Dashboard() {
           </button>
         </div>
       )}
+
+      {/* Live whisper-coaching — renders nudge cards during active calls */}
+      <CoachingOverlay />
     </div>
   );
 }

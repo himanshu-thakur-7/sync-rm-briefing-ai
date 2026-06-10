@@ -54,6 +54,36 @@ async def broadcast_event(event: dict) -> None:
             _ws_clients.remove(ws)
 
 
+async def emit_transcript_chunk(call_id: str, text: str, client_summary: str = "") -> None:
+    """Single funnel for every transcript line, real or simulated.
+
+    Does three things:
+      1. Pushes to the per-call SSE queue (transcript drawer streaming)
+      2. Broadcasts a `transcript_chunk` WS message (live feed ticker)
+      3. Feeds the live-coaching engine; if it returns a nudge, broadcasts a
+         `coaching_nudge` WS message so the dashboard can whisper to the RM.
+
+    Centralizing here means the real Ringg path and the keyless simulation
+    paths (radar save-calls, morning-brief standups) all get coaching for free.
+    """
+    q = _transcript_queues.get(call_id)
+    if q:
+        await q.put(text)
+    await broadcast_event({"type": "transcript_chunk", "data": {"call_id": call_id, "text": text}})
+
+    # Live coaching — best-effort, never block the transcript stream on it.
+    try:
+        from services import coaching_engine
+        nudge = await coaching_engine.observe(call_id, text, client_summary=client_summary)
+        if nudge is not None:
+            await broadcast_event({
+                "type": "coaching_nudge",
+                "data": {"call_id": call_id, **nudge.as_dict()},
+            })
+    except Exception as e:
+        logger.debug("coaching skipped for %s: %s", call_id, e)
+
+
 # ─── WebSocket endpoint ────────────────────────────────────────────────────
 
 @router.websocket("/ws/dashboard")
@@ -387,13 +417,13 @@ async def _process_ringg_event(
             transcript = body.get("transcript")
             await _update_briefing_log(call_id, 0, None, recording_url, transcript)
             if transcript:
-                q = _transcript_queues.get(call_id)
-                if q:
-                    await q.put(transcript)
-                await broadcast_event({
-                    "type": "transcript_chunk",
-                    "data": {"call_id": call_id, "text": transcript},
-                })
+                await emit_transcript_chunk(call_id, transcript)
+                # Call is over — drop coaching state for this call.
+                try:
+                    from services import coaching_engine
+                    coaching_engine.end_call(call_id)
+                except Exception:
+                    pass
                 # Round 2: kick off post-call intelligence
                 asyncio.create_task(run_post_call_analysis(call_id, transcript_override=transcript))
 
@@ -411,13 +441,7 @@ async def _process_ringg_event(
 
         elif event_type == "transcript_chunk":
             chunk = body.get("text", "")
-            q = _transcript_queues.get(call_id)
-            if q:
-                await q.put(chunk)
-            await broadcast_event({
-                "type": "transcript_chunk",
-                "data": {"call_id": call_id, "text": chunk},
-            })
+            await emit_transcript_chunk(call_id, chunk)
 
         await _update_event_status(event_id, "processed")
         await broadcast_event({

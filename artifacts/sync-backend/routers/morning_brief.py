@@ -292,7 +292,7 @@ async def place_morning_brief_call(schedule_id: int, source: str = "scheduler") 
 async def _simulate_standup(schedule_id, call_id, connection_id, agenda, custom_args, rm_name):
     """Stream a believable 2-way standup conversation: SYNC briefs → RM asks →
     SYNC answers (via /ask) → RM asks for action → SYNC executes (via /act)."""
-    from routers.webhooks import broadcast_event, _transcript_queues, run_post_call_analysis
+    from routers.webhooks import broadcast_event, emit_transcript_chunk, run_post_call_analysis
 
     first = rm_name.split()[0] if rm_name else "there"
     lines = [
@@ -337,14 +337,16 @@ async def _simulate_standup(schedule_id, call_id, connection_id, agenda, custom_
     lines.append(f"SYNC: {custom_args.get('closer', 'Have a great day.')}")
 
     # Stream line-by-line at ~1s pacing
-    q = _transcript_queues.get(call_id)
     full = []
     for ln in lines:
         full.append(ln)
-        if q:
-            await q.put(ln)
-        await broadcast_event({"type": "transcript_chunk", "data": {"call_id": call_id, "text": ln}})
+        await emit_transcript_chunk(call_id, ln, client_summary=f"Morning standup for {rm_name}")
         await asyncio.sleep(1.0)
+    try:
+        from services import coaching_engine
+        coaching_engine.end_call(call_id)
+    except Exception:
+        pass
 
     # Finalize MorningBriefCall row
     transcript = "\n".join(full)

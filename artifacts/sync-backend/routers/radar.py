@@ -225,12 +225,13 @@ async def place_save_call(play_id: int, body: Optional[CallRequest] = None):
 async def _simulate_outreach(play_id, call_id, connection_id, client_id, client_name, custom_args):
     """Stream a scripted client conversation, then a transfer, then analysis —
     so the full autonomous loop is demoable with zero Ringg credentials."""
-    from routers.webhooks import broadcast_event, _transcript_queues, run_post_call_analysis
+    from routers.webhooks import broadcast_event, emit_transcript_chunk, run_post_call_analysis
 
     first = client_name.split()[0]
     objective = custom_args.get("objective", "a quick check-in")
     offer = custom_args.get("offer", "")
     company = custom_args.get("company_name", "Acme")
+    client_summary = f"{client_name} — {objective}. {offer}".strip()
     lines = [
         f"SYNC: {custom_args.get('opening_line', f'Hi {first}, this is SYNC calling on behalf of {company}. This call may be recorded.')}",
         f"{first}: Oh, okay — sure, go ahead.",
@@ -240,14 +241,17 @@ async def _simulate_outreach(play_id, call_id, connection_id, client_id, client_
         f"{first}: Yes, that would be good. Maybe later this week though.",
         "SYNC: Perfect — I'll set that up and have them call you. Have a great day!",
     ]
-    q = _transcript_queues.get(call_id)
     full_lines = []
     for ln in lines:
         full_lines.append(ln)
-        if q:
-            await q.put(ln)
-        await broadcast_event({"type": "transcript_chunk", "data": {"call_id": call_id, "text": ln}})
+        await emit_transcript_chunk(call_id, ln, client_summary=client_summary)
         await asyncio.sleep(1.1)
+    # Call finished — release coaching state.
+    try:
+        from services import coaching_engine
+        coaching_engine.end_call(call_id)
+    except Exception:
+        pass
 
     transcript = "\n".join(full_lines)
 

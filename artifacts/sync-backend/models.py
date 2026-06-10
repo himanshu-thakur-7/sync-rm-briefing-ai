@@ -78,6 +78,8 @@ class BriefingLog(BaseModel):
     call_id: str
     risk_score: str
     latency_ms: Optional[int] = None
+    # Optional bag for extras (e.g. cross_sell_value used by the ROI ledger).
+    extra: dict = {}
 
 
 class BriefingStats(BaseModel):
