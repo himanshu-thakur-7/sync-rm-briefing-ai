@@ -2,13 +2,14 @@
  * Editorial dashboard masthead — like the running header of a newspaper.
  * "SYNC · The Briefing Desk · Vol. II No. 1 · LIVE"
  */
-import { Settings, Radar, Sunrise } from "lucide-react";
+import { Settings, Radar, Sunrise, Headphones } from "lucide-react";
 import { useLocation } from "wouter";
 import { ConnectionSwitcher } from "./ConnectionSwitcher";
 import { PiiScrubToggle } from "./PiiScrubToggle";
 import { VoiceCommandBar } from "./VoiceCommandBar";
 import { useConnection } from "@/lib/connection-context";
 import { useEffect, useState } from "react";
+import { isWhisperOn, setWhisperOn, speakArmed, whisperSupported } from "@/lib/whisper";
 
 interface Props {
   isConnected: boolean;
@@ -70,6 +71,7 @@ export function Header({ isConnected, latencyMs, activeClientId, rmName }: Props
             <span className="hidden md:block h-6 w-px bg-ink/15" />
             <ConnectionSwitcher />
             <VoiceCommandBar clientId={activeClientId} rmName={rmName} />
+            <WhisperToggle />
             <PiiScrubToggle />
             <button
               onClick={() => navigate("/settings/integrations")}
@@ -116,5 +118,34 @@ function LiveIndicator({ isConnected, latencyMs }: { isConnected: boolean; laten
         </>
       )}
     </div>
+  );
+}
+
+function WhisperToggle() {
+  const [on, setOn] = useState(isWhisperOn());
+  if (!whisperSupported()) return null;
+
+  const flip = () => {
+    const next = !on;
+    setOn(next);
+    setWhisperOn(next);
+    if (next) speakArmed();
+    else window.speechSynthesis.cancel();
+  };
+
+  return (
+    <button
+      onClick={flip}
+      className={`inline-flex h-8 w-8 items-center justify-center border transition-colors ${
+        on
+          ? "border-amber-700 bg-amber-100 text-amber-900"
+          : "border-ink/30 bg-paper text-ink/70 hover:bg-ink hover:text-cream"
+      }`}
+      title={on
+        ? "Whisper Mode ON — coaching nudges are spoken into your earbud during live calls"
+        : "Whisper Mode — speak coaching nudges into your earbud during live calls"}
+    >
+      <Headphones className="h-3.5 w-3.5" />
+    </button>
   );
 }

@@ -11,9 +11,10 @@
  * Mount once, globally (e.g. in Dashboard). It listens on its own WS connection
  * and renders nothing until a nudge arrives.
  */
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { AlertTriangle, Sparkles, Lightbulb, X } from "lucide-react";
 import { useWebSocket, WebSocketMessage } from "@/hooks/use-websocket";
+import { speakNudge } from "@/lib/whisper";
 
 interface Nudge {
   id: number;
@@ -39,6 +40,8 @@ export function CoachingOverlay() {
       if (msg.type !== "coaching_nudge") return;
       const tone = (["warn", "opportunity", "suggest"].includes(msg.data?.tone)
         ? msg.data.tone : "suggest") as Nudge["tone"];
+      // Whisper Mode: murmur the nudge into the RM's earbud (no-op when off).
+      speakNudge(msg.data?.text ?? "", tone);
       const id = ++seq.current;
       setNudges(prev => [
         { id, text: msg.data?.text ?? "", tone, callId: msg.data?.call_id },
