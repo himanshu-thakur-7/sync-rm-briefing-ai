@@ -63,13 +63,56 @@ class ExecuteResponse(BaseModel):
 
 @router.post("/transcribe", response_model=TranscribeResponse)
 async def transcribe_audio(audio: UploadFile = File(...)):
-    """Accept multipart audio file, return transcript text via Whisper."""
+    """Accept multipart audio, return transcript text.
+
+    STT engine priority: Ringg Parrot STT → OpenAI Whisper → unavailable.
+    """
     try:
         audio_bytes = await audio.read()
         text = await transcribe(audio_bytes, audio.content_type or "audio/webm")
         return TranscribeResponse(transcript=text)
     except Exception as e:
         raise HTTPException(502, f"Transcription failed: {e}")
+
+
+@router.get("/stt-status")
+async def stt_status():
+    """Report which speech-to-text engine the server will use, and why.
+
+    Useful for confirming the Ringg Parrot STT key is wired before a demo.
+    """
+    from config import settings
+
+    ringg_key = settings.ringg_stt_api_key or settings.ringg_api_key
+    ringg_ready = False
+    ringg_detail = "no key"
+    if ringg_key:
+        try:
+            import ringglabs  # noqa: F401
+            ringg_ready = True
+            ringg_detail = (
+                "ringg_stt_api_key" if settings.ringg_stt_api_key else "ringg_api_key (shared)"
+            )
+        except ImportError:
+            ringg_detail = "ringglabs not installed"
+
+    whisper_ready = bool(settings.openai_api_key)
+
+    if ringg_ready:
+        active = "ringg_parrot"
+    elif whisper_ready:
+        active = "openai_whisper"
+    else:
+        active = "none"
+
+    return {
+        "active_engine": active,
+        "ringg_stt": {"ready": ringg_ready, "detail": ringg_detail,
+                      "language": settings.ringg_stt_language},
+        "openai_whisper_fallback": {"ready": whisper_ready},
+        "note": "Live phone calls always use Ringg's in-call STT; this endpoint "
+                "only covers the dashboard mic's server path.",
+    }
 
 
 # ─── Parse ─────────────────────────────────────────────────────────────────

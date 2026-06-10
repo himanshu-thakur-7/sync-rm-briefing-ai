@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     ringg_morning_brief_agent_id: str = ""  # RM-facing "SYNC Morning Brief" conversational agent
     ringg_concierge_agent_id: str = ""      # R4: inbound "SYNC Concierge" — RM dials in, asks about any client
     ringg_inbound_number: str = ""          # The DID printed in the dashboard (display only — Ringg routes by agent)
+    # Ringg Parrot STT — standalone speech-to-text (ringglabs SDK). Separate
+    # product key (often "rk_live_..."). If unset, we try ringg_api_key, then
+    # fall back to OpenAI Whisper for the dashboard-mic server path.
+    ringg_stt_api_key: str = ""
+    ringg_stt_language: str = "en"          # "en" | "hi" — Parrot supports code-mixed too
 
     # Risk Radar
     radar_autopilot_default: bool = False

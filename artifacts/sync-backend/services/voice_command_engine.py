@@ -184,26 +184,67 @@ def _dry_run_preview(tool: str, args: dict, ctx: CommandContext) -> str:
 # ─── Transcription ────────────────────────────────────────────────────────
 
 async def transcribe(audio_bytes: bytes, content_type: str = "audio/webm") -> str:
-    """Transcribe audio. Uses OpenAI Whisper; returns plain text."""
-    from config import settings
-    if not settings.openai_api_key:
-        return "[transcription unavailable — set OPENAI_API_KEY]"
+    """Transcribe audio for the dashboard mic's server path.
 
-    try:
-        import openai
-        client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
-        import io
-        audio_file = io.BytesIO(audio_bytes)
-        audio_file.name = "recording.webm"
-        response = await client.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_file,
-            language="en",
+    Priority:
+      1. Ringg Parrot STT (ringglabs SDK) — keeps voice on Ringg end-to-end,
+         supports Hindi/English/code-mixed. Uses ringg_stt_api_key, falling
+         back to ringg_api_key in case the same key works.
+      2. OpenAI Whisper — only if Ringg STT is unavailable/fails.
+      3. A clear message if neither is configured.
+
+    (Note: the live phone calls never reach here — Ringg transcribes those
+    inside the call pipeline. This is only the push-to-talk dashboard mic on
+    browsers without the Web Speech API.)
+    """
+    from config import settings
+
+    # ── 1. Ringg Parrot STT ────────────────────────────────────────────────
+    stt_key = settings.ringg_stt_api_key or settings.ringg_api_key
+    if stt_key:
+        try:
+            text = await _ringg_transcribe(audio_bytes, content_type, stt_key)
+            if text:
+                logger.info("Transcribed via Ringg Parrot STT (%d chars)", len(text))
+                return text
+        except Exception as e:
+            logger.warning("Ringg STT failed, falling back to Whisper: %s", e)
+
+    # ── 2. OpenAI Whisper fallback ─────────────────────────────────────────
+    if settings.openai_api_key:
+        try:
+            import io
+            import openai
+            client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
+            audio_file = io.BytesIO(audio_bytes)
+            audio_file.name = "recording.webm"
+            response = await client.audio.transcriptions.create(
+                model="whisper-1", file=audio_file, language="en",
+            )
+            return response.text.strip()
+        except Exception as e:
+            logger.error("Whisper transcription failed: %s", e)
+            raise
+
+    return "[transcription unavailable — set RINGG_STT_API_KEY or OPENAI_API_KEY]"
+
+
+async def _ringg_transcribe(audio_bytes: bytes, content_type: str, api_key: str) -> str:
+    """Transcribe a single audio blob via Ringg Parrot STT (ringglabs)."""
+    from config import settings
+
+    # Lazy import so a missing SDK never blocks startup — we just fall back.
+    from ringglabs.stt import AsyncClient  # type: ignore
+
+    async with AsyncClient(api_key=api_key) as client:
+        result = await client.transcribe(
+            audio_bytes,
+            language=settings.ringg_stt_language or "en",
+            enable_cap_punc=True,
+            content_type=content_type or "audio/webm",
         )
-        return response.text.strip()
-    except Exception as e:
-        logger.error("Whisper transcription failed: %s", e)
-        raise
+    # RestTranscriptionResult.transcription holds the text.
+    return (getattr(result, "transcription", "") or "").strip()
 
 
 # ─── Command parsing ──────────────────────────────────────────────────────

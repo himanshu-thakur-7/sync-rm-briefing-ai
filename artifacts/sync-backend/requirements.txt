@@ -5,6 +5,7 @@ pydantic-settings==2.7.0
 httpx==0.28.1
 rapidfuzz==3.11.0
 openai==1.58.1
+ringglabs==0.1.0          # Ringg Parrot STT — standalone speech-to-text SDK
 websockets==14.1
 python-multipart==0.0.20
 sqlmodel==0.0.22

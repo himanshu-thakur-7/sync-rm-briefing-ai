@@ -28,7 +28,12 @@ interface Options {
   onExecuted?: (actionId: string, tool: string) => void;
 }
 
-const hasSpeechAPI = typeof window !== "undefined" && ("webkitSpeechRecognition" in window || "SpeechRecognition" in window);
+// Set VITE_PREFER_SERVER_STT=1 to force the server path (Ringg Parrot STT)
+// instead of the browser's free Web Speech API — useful to showcase Ringg STT
+// end-to-end during the demo.
+const preferServerSTT = import.meta.env.VITE_PREFER_SERVER_STT === "1";
+const hasSpeechAPI = !preferServerSTT && typeof window !== "undefined"
+  && ("webkitSpeechRecognition" in window || "SpeechRecognition" in window);
 
 export function useVoiceCommand({ connectionId, clientId, rmName, onExecuted }: Options) {
   const [state, setState] = useState<VoiceCommandState>({
