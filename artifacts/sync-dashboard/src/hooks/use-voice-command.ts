@@ -59,6 +59,7 @@ export function useVoiceCommand({ connectionId, clientId, rmName, onExecuted }: 
           context: { active_connection_id: connectionId, active_client_id: clientId, rm_name: rmName },
         }),
       });
+      if (!r.ok) throw new Error(`Couldn't parse command (HTTP ${r.status})`);
       const parsed: ParsedCommand = await r.json();
       setState(s => ({
         ...s, parsed,
@@ -99,10 +100,11 @@ export function useVoiceCommand({ connectionId, clientId, rmName, onExecuted }: 
             const form = new FormData();
             form.append("audio", new Blob(audioChunksRef.current, { type: "audio/webm" }), "recording.webm");
             const r = await fetch("/api/v1/voice/transcribe", { method: "POST", body: form });
+            if (!r.ok) throw new Error(`Transcription failed (HTTP ${r.status})`);
             const { transcript } = await r.json();
             setState(s => ({ ...s, transcript }));
             stopAndParse(transcript);
-          } catch { setState(s => ({ ...s, status: "error", error: "Transcription failed" })); }
+          } catch (e: any) { setState(s => ({ ...s, status: "error", error: e?.message ?? "Transcription failed" })); }
         };
         mr.start();
       });
@@ -128,7 +130,13 @@ export function useVoiceCommand({ connectionId, clientId, rmName, onExecuted }: 
           confirm: true,
         }),
       });
+      if (!r.ok) throw new Error(`Action failed (HTTP ${r.status})`);
       const result = await r.json();
+      // Backend may return 200 with a failed status — treat that as an error,
+      // not a false "done".
+      if (result?.status === "failed" || result?.error) {
+        throw new Error(result.error || "The CRM rejected this action.");
+      }
       setState(s => ({ ...s, status: "done", actionId: result.action_id ?? null }));
       onExecuted?.(result.action_id, target.tool);
     } catch (e: any) {
