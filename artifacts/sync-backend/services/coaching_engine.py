@@ -97,6 +97,7 @@ async def observe(call_id: str, line: str, client_summary: str = "") -> Optional
 def end_call(call_id: str) -> None:
     """Drop a finished call's rolling state."""
     _CALLS.pop(call_id, None)
+    _ACTIONS_FIRED.pop(call_id, None)
 
 
 # ─── Model + heuristic ────────────────────────────────────────────────────
@@ -157,6 +158,88 @@ _HEURISTICS: list[tuple[tuple[str, ...], str, str]] = [
     (("maybe", "think about", "let me see", "not now"),
      "Soft no — surface one concrete benefit to re-engage.", "suggest"),
 ]
+
+
+# ─── Action suggestions ───────────────────────────────────────────────────
+# Beyond advice, SYNC spots COMMITMENTS in the conversation ("Thursday at four
+# works", "I'll send the details") and proposes the matching CRM action. The
+# RM approves with one click and the activity lands in the live CRM.
+
+@dataclass
+class ActionSuggestion:
+    tool: str          # matches the voice-command execute tools
+    args: dict
+    preview: str       # human-readable, shown on the approval card
+
+    def as_dict(self) -> dict:
+        return {"tool": self.tool, "args": self.args, "preview": self.preview}
+
+
+_ACTIONS_FIRED: dict[str, set] = {}  # call_id → tools already suggested
+
+_DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+_AGREEMENT = ("works", "sounds good", "okay", "ok ", "fine", "perfect", "sure", "deal", "see you", "confirmed")
+_WORD_NUM = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+}
+
+import re as _re
+
+
+def _extract_when(low: str, day: str) -> str:
+    """Build a spoken-style time like 'Thursday 4:00 PM' from the line."""
+    m = _re.search(r"\bat\s+(\d{1,2}(?::\d{2})?|" + "|".join(_WORD_NUM) + r")\s*(am|pm)?\b", low)
+    if not m:
+        return day.capitalize()
+    raw, meridiem = m.group(1), m.group(2)
+    hour = _WORD_NUM.get(raw, None)
+    if hour is None:
+        hour = int(raw.split(":")[0])
+    minutes = raw.split(":")[1] if ":" in raw else "00"
+    if not meridiem:
+        # Business-hours default: 1–7 reads as PM, 8–12 as AM.
+        meridiem = "pm" if 1 <= hour <= 7 else "am"
+    return f"{day.capitalize()} {hour}:{minutes} {meridiem.upper()}"
+
+
+async def detect_action(call_id: str, line: str) -> Optional[ActionSuggestion]:
+    """Inspect one transcript line for an actionable commitment.
+
+    Heuristic-driven (works keyless); each tool fires at most once per call.
+    A GPT pass can replace this later — the contract (tool/args/preview)
+    already matches the voice-command execute schema.
+    """
+    fired = _ACTIONS_FIRED.setdefault(call_id, set())
+    low = line.lower()
+
+    # Meeting agreed: a weekday + an agreement word on the same line.
+    if "schedule_follow_up" not in fired:
+        day = next((d for d in _DAYS if d in low), None)
+        if day and any(a in low for a in _AGREEMENT):
+            fired.add("schedule_follow_up")
+            when = _extract_when(low, day)
+            return ActionSuggestion(
+                tool="schedule_follow_up",
+                args={"when": when, "kind": "meeting",
+                      "notes": "Agreed during a SYNC-coached call"},
+                preview=f"Schedule a follow-up meeting — {when}",
+            )
+
+    # Deliverable promised: "I'll send the details / proposal / numbers".
+    if "create_task" not in fired:
+        if _re.search(r"\b(i(?:'| wi)ll send|send (?:me|you|over) the)\b", low) and \
+           _re.search(r"\b(details|numbers|proposal|brochure|documents?)\b", low):
+            fired.add("create_task")
+            from datetime import date, timedelta
+            due = (date.today() + timedelta(days=1)).isoformat()
+            return ActionSuggestion(
+                tool="create_task",
+                args={"subject": "Send the discussed details to the client", "due_date": due},
+                preview="Create a task — send the discussed details (due tomorrow)",
+            )
+
+    return None
 
 
 def _heuristic(transcript: str) -> Optional[Nudge]:

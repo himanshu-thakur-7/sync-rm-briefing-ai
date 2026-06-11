@@ -83,6 +83,20 @@ async def emit_transcript_chunk(call_id: str, text: str, client_summary: str = "
     except Exception as e:
         logger.debug("coaching skipped for %s: %s", call_id, e)
 
+    # Commitment detection — propose a CRM action the RM can one-click approve.
+    try:
+        from services import coaching_engine
+        suggestion = await coaching_engine.detect_action(call_id, text)
+        if suggestion is not None:
+            import uuid as _uuid
+            await broadcast_event({
+                "type": "coaching_action_suggestion",
+                "data": {"call_id": call_id, "suggestion_id": _uuid.uuid4().hex[:8],
+                         **suggestion.as_dict()},
+            })
+    except Exception as e:
+        logger.debug("action detection skipped for %s: %s", call_id, e)
+
 
 # ─── WebSocket endpoint ────────────────────────────────────────────────────
 

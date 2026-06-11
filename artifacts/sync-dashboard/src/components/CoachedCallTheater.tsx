@@ -12,7 +12,7 @@
  * line finishes, any queued nudges play as whispers before the next line.
  */
 import { useEffect, useRef, useState } from "react";
-import { Headphones, PhoneOff, Play, AlertTriangle, Sparkles, Lightbulb } from "lucide-react";
+import { Headphones, PhoneOff, Play, AlertTriangle, Sparkles, Lightbulb, CalendarPlus, Check, Loader2, X } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -21,7 +21,13 @@ import { playChime, setTheaterActive, speakDialogue, whisperSupported } from "@/
 
 interface ScriptLine { speaker: "rm" | "client"; text: string; }
 interface Nudge { text: string; tone: "warn" | "opportunity" | "suggest"; }
-interface TranscriptEntry { kind: "line" | "nudge"; speaker?: string; text: string; tone?: string; }
+interface ActionSuggestion { id: string; tool: string; args: Record<string, unknown>; preview: string; }
+interface TranscriptEntry {
+  kind: "line" | "nudge" | "action";
+  speaker?: string; text: string; tone?: string;
+  id?: string; tool?: string; args?: Record<string, unknown>;
+}
+type ActionState = "pending" | "executing" | "done" | "skipped" | "failed";
 
 interface Props {
   open: boolean;
@@ -49,9 +55,11 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
   const [speaking, setSpeaking] = useState<"rm" | "client" | "whisper" | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [nudgeCount, setNudgeCount] = useState(0);
+  const [actionStatus, setActionStatus] = useState<Record<string, ActionState>>({});
 
   const callIdRef = useRef<string>("");
   const nudgeQueue = useRef<Nudge[]>([]);
+  const actionQueue = useRef<ActionSuggestion[]>([]);
   const stopRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -83,14 +91,22 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
     audio.play().catch(done);
   });
 
-  // Collect live nudges for OUR call from the shared socket.
+  // Collect live nudges + action suggestions for OUR call from the shared socket.
   useWebSocket({
     onMessage: (msg: WebSocketMessage) => {
-      if (msg.type !== "coaching_nudge") return;
       if (!callIdRef.current || msg.data?.call_id !== callIdRef.current) return;
-      const tone = (["warn", "opportunity", "suggest"].includes(msg.data?.tone)
-        ? msg.data.tone : "suggest") as Nudge["tone"];
-      nudgeQueue.current.push({ text: msg.data?.text ?? "", tone });
+      if (msg.type === "coaching_nudge") {
+        const tone = (["warn", "opportunity", "suggest"].includes(msg.data?.tone)
+          ? msg.data.tone : "suggest") as Nudge["tone"];
+        nudgeQueue.current.push({ text: msg.data?.text ?? "", tone });
+      } else if (msg.type === "coaching_action_suggestion") {
+        actionQueue.current.push({
+          id: msg.data?.suggestion_id ?? Math.random().toString(36).slice(2, 10),
+          tool: msg.data?.tool ?? "",
+          args: msg.data?.args ?? {},
+          preview: msg.data?.preview ?? "",
+        });
+      }
     },
   });
 
@@ -146,12 +162,45 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
       await new Promise(res => setTimeout(res, 900));
       setSpeaking(null);
     }
+    // Detected commitments surface as approval cards — the RM one-clicks and
+    // the activity is written to the live CRM through the voice-command path.
+    while (actionQueue.current.length > 0 && !stopRef.current) {
+      const a = actionQueue.current.shift()!;
+      await playChime("opportunity");
+      setActionStatus(s => ({ ...s, [a.id]: "pending" }));
+      setEntries(prev => [...prev, {
+        kind: "action", id: a.id, tool: a.tool, args: a.args, text: a.preview,
+      }]);
+      await new Promise(res => setTimeout(res, 600));
+    }
+  };
+
+  const approveAction = async (id: string, tool: string, args: Record<string, unknown>) => {
+    setActionStatus(s => ({ ...s, [id]: "executing" }));
+    try {
+      const r = await fetch("/api/v1/voice/commands/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tool,
+          args: { ...args, connection_id: connectionId, client_id: clientId },
+          confirm: true,
+        }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const result = await r.json();
+      if (result?.status === "failed" || result?.error) throw new Error(result.error || "rejected");
+      setActionStatus(s => ({ ...s, [id]: "done" }));
+    } catch {
+      setActionStatus(s => ({ ...s, [id]: "failed" }));
+    }
   };
 
   const run = async () => {
     stopRef.current = false;
-    setEntries([]); setElapsed(0); setNudgeCount(0);
+    setEntries([]); setElapsed(0); setNudgeCount(0); setActionStatus({});
     nudgeQueue.current = [];
+    actionQueue.current = [];
     setPhase("ringing");
 
     try {
@@ -274,8 +323,16 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
                   <span className="font-edit-mono text-[10px] font-bold uppercase tracking-widest text-ink/45">{e.speaker}</span>
                   {"  "}{e.text}
                 </p>
-              ) : (
+              ) : e.kind === "nudge" ? (
                 <NudgeRow key={i} text={e.text} tone={e.tone ?? "suggest"} />
+              ) : (
+                <ActionRow
+                  key={e.id ?? i}
+                  preview={e.text}
+                  status={actionStatus[e.id ?? ""] ?? "pending"}
+                  onApprove={() => approveAction(e.id!, e.tool!, e.args ?? {})}
+                  onSkip={() => setActionStatus(s => ({ ...s, [e.id!]: "skipped" }))}
+                />
               )
             )}
           </div>
@@ -321,6 +378,60 @@ function SpeakerCard({ name, role, active }: { name: string; role: string; activ
         <span className="truncate font-serif text-sm font-semibold text-ink">{name}</span>
       </div>
       <p className="mt-0.5 font-edit-mono text-[9px] uppercase tracking-widest text-ink/45">{role}</p>
+    </div>
+  );
+}
+
+function ActionRow({ preview, status, onApprove, onSkip }: {
+  preview: string; status: ActionState; onApprove: () => void; onSkip: () => void;
+}) {
+  return (
+    <div className="flex items-start gap-2 border-2 border-ink bg-paper px-2.5 py-2 shadow-sm"
+         style={{ animation: "coachIn 0.25s ease-out both" }}>
+      <CalendarPlus className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink/70" />
+      <div className="min-w-0 flex-1">
+        <span className="font-edit-mono text-[9px] font-bold uppercase tracking-widest text-ink/50">
+          SYNC heard a commitment
+        </span>
+        <p className="font-serif text-[13px] leading-snug text-ink">{preview}</p>
+        <div className="mt-1.5 flex items-center gap-2">
+          {status === "pending" && (
+            <>
+              <button
+                onClick={onApprove}
+                className="inline-flex items-center gap-1 border border-emerald-800 bg-emerald-800 px-2.5 py-1 font-edit-mono text-[9px] font-bold uppercase tracking-widest text-paper hover:bg-paper hover:text-emerald-800"
+              >
+                <Check className="h-3 w-3" /> Approve · file in CRM
+              </button>
+              <button
+                onClick={onSkip}
+                className="inline-flex items-center gap-1 border border-ink/30 px-2.5 py-1 font-edit-mono text-[9px] uppercase tracking-widest text-ink/60 hover:bg-ink/[0.05]"
+              >
+                <X className="h-3 w-3" /> Skip
+              </button>
+            </>
+          )}
+          {status === "executing" && (
+            <span className="inline-flex items-center gap-1 font-edit-mono text-[9px] uppercase tracking-widest text-ink/60">
+              <Loader2 className="h-3 w-3 animate-spin" /> Writing to CRM…
+            </span>
+          )}
+          {status === "done" && (
+            <span className="inline-flex items-center gap-1 font-edit-mono text-[9px] font-bold uppercase tracking-widest text-emerald-800">
+              <Check className="h-3 w-3" /> Filed in Pipedrive
+            </span>
+          )}
+          {status === "skipped" && (
+            <span className="font-edit-mono text-[9px] uppercase tracking-widest text-ink/40">Skipped</span>
+          )}
+          {status === "failed" && (
+            <span className="inline-flex items-center gap-2 font-edit-mono text-[9px] uppercase tracking-widest text-red-800">
+              Failed —
+              <button onClick={onApprove} className="underline underline-offset-2 hover:text-red-900">retry</button>
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -34,9 +34,9 @@ class Settings(BaseSettings):
     # Free tier (10k credits/mo) is plenty: responses are cached server-side,
     # so replaying the same script costs zero credits after first generation.
     elevenlabs_api_key: str = ""
-    elevenlabs_voice_rm: str = "pNInz6obpgDQGcFmaJgB"      # "Adam" — deep, confident
-    elevenlabs_voice_client: str = "ErXwobaYiN019PkySvjV"  # "Antoni" — softer, distinct
-    elevenlabs_model: str = "eleven_turbo_v2_5"            # 0.5 credits/char, low latency
+    elevenlabs_voice_rm: str = "cjVigY5qzO86Huf0OWal"      # "Eric" — smooth, trustworthy (conversational)
+    elevenlabs_voice_client: str = "iP95p4xoKVk53GoZ742B"  # "Chris" — charming, down-to-earth (conversational)
+    elevenlabs_model: str = "eleven_multilingual_v2"       # most expressive; cache keeps credits tiny
 
     # Risk Radar
     radar_autopilot_default: bool = False

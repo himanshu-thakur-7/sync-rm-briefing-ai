@@ -427,8 +427,20 @@ async def theater_tts(body: TTSRequest):
         raise HTTPException(400, "text must be 1–600 chars")
 
     voice_id = settings.elevenlabs_voice_rm if body.speaker == "rm" else settings.elevenlabs_voice_client
+    # Lower stability + style exaggeration = audibly human intonation, not a
+    # flat screen-reader cadence. Settings ride in the cache key so tuning
+    # them invalidates stale audio automatically.
+    voice_settings = {
+        "stability": 0.4,
+        "similarity_boost": 0.8,
+        "style": 0.4,
+        "use_speaker_boost": True,
+    }
     import hashlib
-    cache_key = hashlib.sha1(f"{voice_id}|{settings.elevenlabs_model}|{text}".encode()).hexdigest()
+    settings_tag = f"s{voice_settings['stability']}-st{voice_settings['style']}"
+    cache_key = hashlib.sha1(
+        f"{voice_id}|{settings.elevenlabs_model}|{settings_tag}|{text}".encode()
+    ).hexdigest()
     cached = _TTS_CACHE.get(cache_key)
     if cached:
         return Response(content=cached, media_type="audio/mpeg",
@@ -439,7 +451,8 @@ async def theater_tts(body: TTSRequest):
             f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
             params={"output_format": "mp3_44100_64"},
             headers={"xi-api-key": settings.elevenlabs_api_key},
-            json={"text": text, "model_id": settings.elevenlabs_model},
+            json={"text": text, "model_id": settings.elevenlabs_model,
+                  "voice_settings": voice_settings},
         )
     if resp.status_code >= 400:
         logger.warning("ElevenLabs TTS failed: %s %s", resp.status_code, resp.text[:200])
