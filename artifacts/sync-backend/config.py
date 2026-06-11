@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     ringg_stt_api_key: str = ""
     ringg_stt_language: str = "en"          # "en" | "hi" — Parrot supports code-mixed too
 
+    # Twilio — click-to-call bridge for Coached Calls (RM ↔ client with SYNC
+    # listening via Media Streams and whispering coaching to the dashboard).
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_from_number: str = ""            # E.164, e.g. +15005550006
+
     # Risk Radar
     radar_autopilot_default: bool = False
     radar_scan_interval_min: int = 15

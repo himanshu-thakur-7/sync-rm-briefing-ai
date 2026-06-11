@@ -13,8 +13,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  CheckCircle2, Loader2, ArrowRight, ShieldAlert, Sparkles, PanelRightOpen, Mic,
+  CheckCircle2, Loader2, ArrowRight, ShieldAlert, Sparkles, PanelRightOpen, Mic, Headphones,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -32,12 +33,14 @@ interface Props {
 export function SyncPanel({ onClientSelect, onRmNameChange, onShowEmbed }: Props) {
   const { connectionId } = useConnection();
   const { scrub } = usePii();
+  const { toast } = useToast();
   const { data: clients, isLoading } = useListClients();
   const [selectedClient, setSelectedClient] = useState("");
   const [rmPhone, setRmPhone] = useState(import.meta.env.VITE_DEMO_RM_PHONE ?? "+91 98765 43210");
   const [rmName, setRmName] = useState(import.meta.env.VITE_DEMO_RM_NAME ?? "Himanshu");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewText, setPreviewText] = useState("");
+  const [coachedPending, setCoachedPending] = useState(false);
   const syncMutation = useSyncNow();
   const selectedSummary = clients?.find(c => c.client_id === selectedClient);
   const { data: selectedProfile } = useGetClient(selectedClient);
@@ -56,6 +59,41 @@ export function SyncPanel({ onClientSelect, onRmNameChange, onShowEmbed }: Props
   const isPending = syncMutation.isPending;
   const isSuccess = syncMutation.isSuccess;
   const provider = providerFromConnectionId(connectionId);
+
+  // Coached Call — a real RM ↔ client phone call with SYNC listening live
+  // (Twilio bridge when configured, Ringg silent-chaperone otherwise) and
+  // whisper coaching firing on the dashboard / earbud.
+  const handleCoachedCall = async () => {
+    if (!selectedClient || !rmPhone) return;
+    setCoachedPending(true);
+    try {
+      const r = await fetch("/api/v1/coached-calls/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: selectedClient,
+          client_name: selectedSummary?.name ?? "the client",
+          rm_phone: rmPhone.replace(/\s/g, ""),
+          rm_name: rmName,
+          connection_id: connectionId,
+          route: "auto",
+        }),
+      });
+      if (!r.ok) {
+        const detail = await r.text();
+        throw new Error(`HTTP ${r.status}: ${detail.slice(0, 160)}`);
+      }
+      const d = await r.json();
+      toast({
+        title: d.route === "twilio" ? "Coached call — your phone is ringing" : "Coached call via SYNC line",
+        description: `${d.message} Turn on Whisper Mode (🎧 in the masthead) to hear tips in your ear.`,
+      });
+    } catch (e: any) {
+      toast({ title: "Coached call failed", description: e?.message ?? String(e), variant: "destructive" });
+    } finally {
+      setCoachedPending(false);
+    }
+  };
 
   return (
     <>
@@ -143,6 +181,18 @@ export function SyncPanel({ onClientSelect, onRmNameChange, onShowEmbed }: Props
             ) : (
               <>Initiate Briefing Call<ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" /></>
             )}
+          </button>
+
+          {/* Coached Call — live human↔human call with SYNC whispering */}
+          <button
+            onClick={handleCoachedCall}
+            disabled={!selectedClient || !rmPhone || coachedPending}
+            className="inline-flex w-full items-center justify-center gap-2 border-2 border-ink/40 bg-paper px-5 py-2.5 font-edit-mono text-[10px] uppercase tracking-widest text-ink/80 transition-colors hover:border-ink hover:bg-ink hover:text-cream disabled:cursor-not-allowed disabled:opacity-50"
+            title="SYNC bridges you and the client on a real call, listens live, and whispers coaching"
+          >
+            {coachedPending
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Placing call…</>
+              : <><Headphones className="h-3.5 w-3.5" />Coached Call · SYNC listens live</>}
           </button>
 
           {selectedClient && (
