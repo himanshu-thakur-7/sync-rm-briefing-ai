@@ -1,12 +1,28 @@
-# SYNC — Hackathon Day Runbook
+# SYNC — Hackathon Runbook (event: Sunday)
 
-## 0. Night before
-- [ ] Set up a free UptimeRobot monitor pinging `https://sync-backend-u9rv.onrender.com/api/healthz` every 5 min (Render free tier sleeps after 15 min idle; cold start ≈ 30–60 s).
-- [ ] Create Twilio trial account → buy a number → **verify BOTH demo phone numbers** (Verified Caller IDs — trial only calls verified numbers).
+## Thursday evening (~1 h) — everything that needs no Ringg credits
+- [ ] Free UptimeRobot monitor pinging `https://sync-backend-u9rv.onrender.com/api/healthz` every 5 min (Render free tier sleeps after 15 min idle; cold start ≈ 30–60 s).
+- [ ] Twilio trial account → buy a number → **verify BOTH demo phone numbers** (Verified Caller IDs — trial only calls verified numbers; each needs an OTP).
+- [ ] Set ALL env vars on Render now (section 1) — costs nothing to set early; Ringg calls simply stay simulated until credits land Sunday.
+- [ ] OpenAI key on Render → coaching/briefing/analysis upgrade to GPT-4o instantly.
+
+## Friday (~2 h) — real-call testing, no time pressure
+- [ ] One Twilio coached call end-to-end (section 2, step 5) — whisper on a REAL call.
+- [ ] Verify GPT-4o coaching nudges in the sim (smarter than the heuristics).
+- [ ] If any Ringg credits remain: briefing call + the 5-min chaperone test (section 2, step 4).
+
+## Saturday (~2 h) — stage rehearsal
+- [ ] Two full timed dry-runs of the 4-minute demo (section 3), projector if possible.
+- [ ] Pitch talk-track written; backup video queued LOCALLY (not a cloud link).
 - [ ] Charge both phones; pack one wired earbud.
-- [ ] Queue the backup video locally (not a cloud link).
 
-## 1. Env vars on Render (first 30 min — the deployed backend has NO Ringg creds today)
+## Sunday (8 h at the event) — only what NEEDS hackathon credits
+- Hour 0–1: Ringg credits → inbound number → INBOUND_SETUP.md → concierge live.
+- Hour 1–2: chaperone test (if not done Friday) + real briefing / save-call / standup.
+- Hour 2–3: final full dry-run with real calls woven in.
+- Rest: buffer + pitch polish. Re-run "Seed demo day" right before presenting.
+
+## 1. Env vars on Render (set Thursday — the deployed backend has NO Ringg creds today)
 Copy from local `.env` → Render → sync-backend → Environment:
 ```
 RINGG_API_KEY                  ← without this, all "real" calls silently simulate
