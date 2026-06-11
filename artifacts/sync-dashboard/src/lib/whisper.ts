@@ -66,6 +66,12 @@ function pickVoice(): SpeechSynthesisVoice | undefined {
   );
 }
 
+/** Exported chime for the theater — draws the ear to a whisper card without
+ *  reading it aloud. */
+export function playChime(tone: string): Promise<void> {
+  return chime(tone);
+}
+
 // While the Coached Call theater is open it owns ALL audio sequencing —
 // dialogue voices and whispers interleave on its clock. Suppress the global
 // speakNudge path so a nudge never cancels a dialogue line mid-sentence.

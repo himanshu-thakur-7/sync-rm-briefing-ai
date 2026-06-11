@@ -394,7 +394,63 @@ async def simulate_start(body: SimStartRequest):
         "call_id": call_key,
         "script": _build_sim_script(client_first, rm_first, settings.demo_company_name),
         "labels": {"rm": rm_first, "client": client_first},
+        "premium_tts": bool(settings.elevenlabs_api_key),
     }
+
+
+# ─── Natural TTS for the theater (ElevenLabs, server-cached) ──────────────
+
+class TTSRequest(BaseModel):
+    text: str
+    speaker: str  # "rm" | "client"
+
+
+# In-memory audio cache — the sim script is fixed per (names, voice, model),
+# so after the first full play every replay is served from RAM: zero credits.
+_TTS_CACHE: dict[str, bytes] = {}
+_TTS_CACHE_MAX = 200
+
+
+@router.post("/tts")
+async def theater_tts(body: TTSRequest):
+    """Generate one dialogue line as natural speech via ElevenLabs.
+
+    Returns audio/mpeg. 503 when no key is configured — the frontend then
+    falls back to browser speechSynthesis, so the sim always works.
+    """
+    if not settings.elevenlabs_api_key:
+        raise HTTPException(503, "ElevenLabs not configured (set ELEVENLABS_API_KEY)")
+    if body.speaker not in ("rm", "client"):
+        raise HTTPException(400, "speaker must be 'rm' or 'client'")
+    text = body.text.strip()
+    if not text or len(text) > 600:
+        raise HTTPException(400, "text must be 1–600 chars")
+
+    voice_id = settings.elevenlabs_voice_rm if body.speaker == "rm" else settings.elevenlabs_voice_client
+    import hashlib
+    cache_key = hashlib.sha1(f"{voice_id}|{settings.elevenlabs_model}|{text}".encode()).hexdigest()
+    cached = _TTS_CACHE.get(cache_key)
+    if cached:
+        return Response(content=cached, media_type="audio/mpeg",
+                        headers={"X-TTS-Cache": "hit"})
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+            params={"output_format": "mp3_44100_64"},
+            headers={"xi-api-key": settings.elevenlabs_api_key},
+            json={"text": text, "model_id": settings.elevenlabs_model},
+        )
+    if resp.status_code >= 400:
+        logger.warning("ElevenLabs TTS failed: %s %s", resp.status_code, resp.text[:200])
+        raise HTTPException(502, f"TTS provider error {resp.status_code}")
+
+    audio = resp.content
+    if len(_TTS_CACHE) >= _TTS_CACHE_MAX:
+        _TTS_CACHE.pop(next(iter(_TTS_CACHE)))
+    _TTS_CACHE[cache_key] = audio
+    return Response(content=audio, media_type="audio/mpeg",
+                    headers={"X-TTS-Cache": "miss"})
 
 
 @router.post("/simulate/{call_key}/line")

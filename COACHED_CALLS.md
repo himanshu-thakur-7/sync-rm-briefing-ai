@@ -81,6 +81,30 @@ RM phone ←── leg 1 ──→ Twilio ←── leg 2 ──→ Client phone
 
 ---
 
+## Simulation theater — natural voices (ElevenLabs)
+
+The "▶ Simulate Call" theater speaks the conversation with browser TTS by
+default. For natural, distinct voices (RM = "Adam", client = "Antoni"):
+
+1. Sign up free at https://elevenlabs.io (10,000 credits/month — the sim
+   script costs ~600 credits to generate ONCE; replays are served from the
+   backend's audio cache at zero credits).
+2. Profile → API Keys → create a key.
+3. Render → sync-backend → Environment:
+   ```
+   ELEVENLABS_API_KEY = sk_…
+   ```
+   Optional voice overrides (any voice ID from the ElevenLabs voice library):
+   ```
+   ELEVENLABS_VOICE_RM     = pNInz6obpgDQGcFmaJgB   # Adam (default)
+   ELEVENLABS_VOICE_CLIENT = ErXwobaYiN019PkySvjV   # Antoni (default)
+   ```
+4. Redeploy → the theater automatically switches to natural voices
+   (it falls back to browser TTS per-line if the provider hiccups).
+
+SYNC's whisper nudges in the theater are intentionally **chime + card only** —
+they never speak over the conversation.
+
 ## Route B · Ringg silent chaperone (backup)
 
 No new accounts needed — uses your existing Ringg outreach agent.

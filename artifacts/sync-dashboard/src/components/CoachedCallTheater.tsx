@@ -17,7 +17,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { useWebSocket, WebSocketMessage } from "@/hooks/use-websocket";
-import { setTheaterActive, speakDialogue, speakWhisperLine, whisperSupported } from "@/lib/whisper";
+import { playChime, setTheaterActive, speakDialogue, whisperSupported } from "@/lib/whisper";
 
 interface ScriptLine { speaker: "rm" | "client"; text: string; }
 interface Nudge { text: string; tone: "warn" | "opportunity" | "suggest"; }
@@ -54,6 +54,34 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
   const nudgeQueue = useRef<Nudge[]>([]);
   const stopRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const premiumTtsRef = useRef(false);
+
+  // ── Natural voices (ElevenLabs via backend proxy, cached server-side). ──
+  // Falls back to browser speechSynthesis per-line when the key isn't set
+  // or a fetch fails, so the sim always plays.
+  const fetchAudio = async (text: string, speaker: "rm" | "client"): Promise<Blob | null> => {
+    if (!premiumTtsRef.current) return null;
+    try {
+      const r = await fetch("/api/v1/coached-calls/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, speaker }),
+      });
+      if (!r.ok) return null;
+      return await r.blob();
+    } catch { return null; }
+  };
+
+  const playBlob = (blob: Blob): Promise<void> => new Promise(resolve => {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audioRef.current = audio;
+    const done = () => { URL.revokeObjectURL(url); audioRef.current = null; resolve(); };
+    audio.onended = done;
+    audio.onerror = done;
+    audio.play().catch(done);
+  });
 
   // Collect live nudges for OUR call from the shared socket.
   useWebSocket({
@@ -84,6 +112,8 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
     setTheaterActive(false);
     stopRef.current = true;
     if (whisperSupported()) window.speechSynthesis.cancel();
+    audioRef.current?.pause();
+    audioRef.current = null;
   }, [open]);
 
   const ringTone = async () => {
@@ -104,13 +134,16 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
     } catch { /* no ring is fine */ }
   };
 
+  // Whispers are chime + card only — SYNC's tips land silently in the eye,
+  // never read aloud over the conversation.
   const drainNudges = async () => {
     while (nudgeQueue.current.length > 0 && !stopRef.current) {
       const n = nudgeQueue.current.shift()!;
       setNudgeCount(c => c + 1);
-      setEntries(prev => [...prev, { kind: "nudge", text: n.text, tone: n.tone }]);
       setSpeaking("whisper");
-      await speakWhisperLine(n.text, n.tone);
+      await playChime(n.tone);
+      setEntries(prev => [...prev, { kind: "nudge", text: n.text, tone: n.tone }]);
+      await new Promise(res => setTimeout(res, 900));
       setSpeaking(null);
     }
   };
@@ -128,16 +161,23 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
         body: JSON.stringify({ client_id: clientId, client_name: clientName, rm_name: rmName, connection_id: connectionId }),
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const { call_id, script, labels } = await r.json() as
-        { call_id: string; script: ScriptLine[]; labels: { rm: string; client: string } };
+      const { call_id, script, labels, premium_tts } = await r.json() as
+        { call_id: string; script: ScriptLine[]; labels: { rm: string; client: string }; premium_tts?: boolean };
       callIdRef.current = call_id;
+      premiumTtsRef.current = !!premium_tts;
+
+      // Prefetch one line ahead so natural-voice playback has no gaps
+      // (sequential, not parallel — free-tier providers cap concurrency).
+      let nextAudio: Promise<Blob | null> = fetchAudio(script[0].text, script[0].speaker);
 
       await ringTone();
       if (stopRef.current) return;
       setPhase("live");
 
-      for (const line of script) {
+      for (let i = 0; i < script.length; i++) {
         if (stopRef.current) break;
+        const line = script[i];
+        const audioPromise = nextAudio;
         const label = line.speaker === "rm" ? labels.rm : labels.client;
         setEntries(prev => [...prev, { kind: "line", speaker: label, text: line.text }]);
         setSpeaking(line.speaker);
@@ -148,7 +188,17 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ speaker: line.speaker, text: line.text }),
         }).catch(() => { /* sim keeps playing even if a post drops */ });
-        await speakDialogue(line.text, line.speaker === "rm" ? RM_VOICE : CLIENT_VOICE);
+
+        const blob = await audioPromise;
+        nextAudio = i + 1 < script.length
+          ? fetchAudio(script[i + 1].text, script[i + 1].speaker)
+          : Promise.resolve(null);
+
+        if (blob && !stopRef.current) {
+          await playBlob(blob);
+        } else if (!stopRef.current) {
+          await speakDialogue(line.text, line.speaker === "rm" ? RM_VOICE : CLIENT_VOICE);
+        }
         setSpeaking(null);
         if (stopRef.current) break;
         await drainNudges();
@@ -169,6 +219,8 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
   const hangUp = async () => {
     stopRef.current = true;
     if (whisperSupported()) window.speechSynthesis.cancel();
+    audioRef.current?.pause();
+    audioRef.current = null;
     if (callIdRef.current) {
       fetch(`/api/v1/coached-calls/simulate/${callIdRef.current}/end`, { method: "POST" }).catch(() => {});
     }

@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     twilio_auth_token: str = ""
     twilio_from_number: str = ""            # E.164, e.g. +15005550006
 
+    # ElevenLabs — natural TTS voices for the coached-call simulation theater.
+    # Free tier (10k credits/mo) is plenty: responses are cached server-side,
+    # so replaying the same script costs zero credits after first generation.
+    elevenlabs_api_key: str = ""
+    elevenlabs_voice_rm: str = "pNInz6obpgDQGcFmaJgB"      # "Adam" — deep, confident
+    elevenlabs_voice_client: str = "ErXwobaYiN019PkySvjV"  # "Antoni" — softer, distinct
+    elevenlabs_model: str = "eleven_turbo_v2_5"            # 0.5 credits/char, low latency
+
     # Risk Radar
     radar_autopilot_default: bool = False
     radar_scan_interval_min: int = 15
