@@ -30,13 +30,21 @@ BACKEND = "https://sync-backend-u9rv.onrender.com"
 
 # ── Must mirror routers/coached_calls.py ──────────────────────────────────
 VOICE_RM = "cjVigY5qzO86Huf0OWal"      # Eric
-VOICE_CLIENT = "iP95p4xoKVk53GoZ742B"  # Chris
+VOICE_CLIENT = "iP95p4xoKVk53GoZ742B"  # Chris (default male client)
+CLIENT_VOICE_OVERRIDES = {
+    "priya": "EXAVITQu4vr4xnSDxMaL",   # Sarah
+    "sneha": "cgSgspJ2msm6clMCkdW9",   # Jessica
+}
 MODEL = "eleven_multilingual_v2"
 VOICE_SETTINGS = {"stability": 0.4, "similarity_boost": 0.8, "style": 0.4, "use_speaker_boost": True}
 SETTINGS_TAG = f"s{VOICE_SETTINGS['stability']}-st{VOICE_SETTINGS['style']}"
 
 RM_NAME = "Himanshu"
 DEMO_CLIENTS = ["Vikram Desai", "Rahul Mehta", "Priya Sharma", "Amit Patel", "Sneha Reddy"]
+
+
+def client_voice(client_name: str) -> str:
+    return CLIENT_VOICE_OVERRIDES.get(client_name.split(" ")[0].lower(), VOICE_CLIENT)
 
 
 def read_key() -> str:
@@ -73,7 +81,7 @@ def main() -> None:
             pass
         for line in resp["script"]:
             text = line["text"]
-            voice = VOICE_RM if line["speaker"] == "rm" else VOICE_CLIENT
+            voice = VOICE_RM if line["speaker"] == "rm" else client_voice(client_name)
             cache_key = hashlib.sha1(f"{voice}|{MODEL}|{SETTINGS_TAG}|{text}".encode()).hexdigest()
             if cache_key in seen:
                 continue

@@ -74,7 +74,8 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
       const r = await fetch("/api/v1/coached-calls/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, speaker }),
+        // client_name lets the backend pick a gender-appropriate client voice
+        body: JSON.stringify({ text, speaker, client_name: clientName }),
       });
       if (!r.ok) return null;
       return await r.blob();

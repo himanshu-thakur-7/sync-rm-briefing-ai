@@ -403,6 +403,20 @@ async def simulate_start(body: SimStartRequest):
 class TTSRequest(BaseModel):
     text: str
     speaker: str  # "rm" | "client"
+    client_name: str = ""  # lets us pick a gender-appropriate client voice
+
+
+# Per-client voice overrides (by first name, lowercase). Female demo clients
+# get female voices; everyone else uses the default client voice.
+_CLIENT_VOICE_OVERRIDES = {
+    "priya": "EXAVITQu4vr4xnSDxMaL",   # "Sarah" — mature, reassuring, confident
+    "sneha": "cgSgspJ2msm6clMCkdW9",   # "Jessica" — bright, warm, younger
+}
+
+
+def _client_voice(client_name: str) -> str:
+    first = (client_name or "").split(" ")[0].lower()
+    return _CLIENT_VOICE_OVERRIDES.get(first, settings.elevenlabs_voice_client)
 
 
 # In-memory audio cache — the sim script is fixed per (names, voice, model),
@@ -426,7 +440,7 @@ async def theater_tts(body: TTSRequest):
     if not text or len(text) > 600:
         raise HTTPException(400, "text must be 1–600 chars")
 
-    voice_id = settings.elevenlabs_voice_rm if body.speaker == "rm" else settings.elevenlabs_voice_client
+    voice_id = settings.elevenlabs_voice_rm if body.speaker == "rm" else _client_voice(body.client_name)
     # Lower stability + style exaggeration = audibly human intonation, not a
     # flat screen-reader cadence. Settings ride in the cache key so tuning
     # them invalidates stale audio automatically.

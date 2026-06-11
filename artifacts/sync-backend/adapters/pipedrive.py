@@ -513,17 +513,68 @@ class PipedriveCRMAdapter(CRMAdapter):
         except Exception as e:
             logger.warning("Pipedrive complaint status update failed: %s", e)
 
+    @staticmethod
+    def _parse_when(when: str) -> tuple[str, Optional[str]]:
+        """Turn a spoken 'when' ('Thursday 4:00 PM', '2026-06-18 16:00') into
+        Pipedrive's (due_date, due_time). Weekday names resolve to the NEXT
+        occurrence; bare hours in business range default to PM."""
+        import re as _re
+        from datetime import date as _date, timedelta as _td
+
+        low = (when or "").strip().lower()
+
+        # Explicit ISO date first.
+        m = _re.match(r"(\d{4}-\d{2}-\d{2})", low)
+        if m:
+            due_date = m.group(1)
+            rest = low[m.end():]
+        else:
+            days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+            day_idx = next((i for i, d in enumerate(days) if d in low), None)
+            if day_idx is not None:
+                today = _date.today()
+                ahead = (day_idx - today.weekday()) % 7 or 7  # always the NEXT one
+                due_date = (today + _td(days=ahead)).isoformat()
+            elif "tomorrow" in low:
+                due_date = (_date.today() + _td(days=1)).isoformat()
+            else:
+                due_date = _date.today().isoformat()
+            rest = low
+
+        tm = _re.search(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", rest)
+        due_time = None
+        if tm:
+            hour = int(tm.group(1))
+            minutes = tm.group(2) or "00"
+            meridiem = tm.group(3)
+            if 0 <= hour <= 23:
+                if meridiem == "pm" and hour < 12:
+                    hour += 12
+                elif meridiem == "am" and hour == 12:
+                    hour = 0
+                elif not meridiem and 1 <= hour <= 7:
+                    hour += 12  # business-hours default: bare 1–7 reads as PM
+                due_time = f"{hour:02d}:{minutes}"
+        return due_date, due_time
+
     async def schedule_follow_up(self, client_id: str, when: str, kind: str, notes: str) -> str:
         type_map = {"call": "call", "meeting": "meeting", "email": "email", "branch_visit": "meeting"}
         pd_type = type_map.get(kind, "call")
+        due_date, due_time = self._parse_when(when)
         payload = {
-            "subject": f"Follow-up {kind}: {notes[:80]}" if notes else f"Follow-up {kind}",
+            "subject": f"{pd_type.capitalize()} with client — {when}".strip(),
             "type": pd_type,
             "person_id": int(client_id),
-            "due_date": when[:10],
+            "due_date": due_date,
             "note": notes,
             "done": 0,
+            "busy_flag": True,
         }
+        # A timed slot makes it a real calendar meeting in Pipedrive's
+        # scheduler view, not just a dated to-do.
+        if due_time:
+            payload["due_time"] = due_time
+            payload["duration"] = "00:30"
         try:
             r = await self._post("/activities", payload)
             return str((r.get("data") or {}).get("id", "")) if isinstance(r, dict) else ""
