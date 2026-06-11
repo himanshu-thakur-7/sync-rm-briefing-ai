@@ -334,6 +334,93 @@ async def media_sink(websocket: WebSocket, call_key: str):
         await _finish(call_key)
 
 
+# ─── Simulation ("theater mode") ───────────────────────────────────────────
+# Judges won't place real phone calls. The frontend plays a scripted RM↔client
+# conversation with two TTS voices, but EVERY line is posted back here and runs
+# through the real emit_transcript_chunk → coaching pipeline — so the whisper
+# nudges in the demo are computed live, not pre-scripted.
+
+def _build_sim_script(client_first: str, rm_first: str, company: str) -> list[dict]:
+    return [
+        {"speaker": "rm",     "text": f"Hi {client_first}, this is {rm_first} from {company}. Do you have two minutes?"},
+        {"speaker": "client", "text": f"Oh hi {rm_first}. Yes, I have a few minutes."},
+        {"speaker": "rm",     "text": "I was looking at your account this morning and wanted to talk about the business loan EMIs."},
+        {"speaker": "client", "text": "To be honest, I have been a bit worried about the repayments lately. Cash flow has been tight."},
+        {"speaker": "rm",     "text": "I completely understand. There is actually a way to bring your monthly outgo down quite a bit."},
+        {"speaker": "client", "text": "Hmm. Last week another bank offered me a better rate on a balance transfer."},
+        {"speaker": "rm",     "text": "Rates matter, but so does having everything under one roof with someone who knows your business."},
+        {"speaker": "client", "text": "That's fair. Okay, tell me more about your option, that sounds good."},
+        {"speaker": "rm",     "text": "We move your credit card balance into a personal loan. Same payment date, and you save about three lakh in interest this year."},
+        {"speaker": "client", "text": "Three lakh? Let me think about it, maybe after this quarter."},
+        {"speaker": "rm",     "text": "How about this — I will hold a slot Thursday at four PM and walk you through the numbers. No commitment."},
+        {"speaker": "client", "text": "Okay, Thursday at four works."},
+        {"speaker": "rm",     "text": f"Perfect, locking it in. I will send the details. Thanks {client_first}, talk Thursday!"},
+    ]
+
+
+class SimStartRequest(BaseModel):
+    client_id: str = ""
+    client_name: str = "Vikram Desai"
+    rm_name: str = "Himanshu"
+    connection_id: Optional[str] = None
+
+
+class SimLineRequest(BaseModel):
+    speaker: str   # "rm" | "client"
+    text: str
+
+
+@router.post("/simulate/start")
+async def simulate_start(body: SimStartRequest):
+    call_key = f"sim_{uuid.uuid4().hex[:10]}"
+    client_first = (body.client_name or "the client").split()[0]
+    rm_first = (body.rm_name or "the RM").split()[0]
+    _SESSIONS[call_key] = {
+        "client_id": body.client_id,
+        "client_name": body.client_name,
+        "rm_name": body.rm_name,
+        "connection_id": body.connection_id,
+        "client_phone": "",
+        "lines": [],
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "simulated": True,
+    }
+
+    from routers.webhooks import broadcast_event
+    await broadcast_event({"type": "coached_call_started", "data": {
+        "call_id": call_key, "route": "simulation", "client_name": body.client_name,
+    }})
+    return {
+        "call_id": call_key,
+        "script": _build_sim_script(client_first, rm_first, settings.demo_company_name),
+        "labels": {"rm": rm_first, "client": client_first},
+    }
+
+
+@router.post("/simulate/{call_key}/line")
+async def simulate_line(call_key: str, body: SimLineRequest):
+    sess = _SESSIONS.get(call_key)
+    if sess is None:
+        raise HTTPException(404, "Simulation not found (or already ended)")
+    label = (sess.get("rm_name") if body.speaker == "rm" else sess.get("client_name") or "Client").split()[0]
+    line = f"{label}: {body.text}"
+    sess["lines"].append(line)
+    from routers.webhooks import emit_transcript_chunk
+    await emit_transcript_chunk(
+        call_key, line,
+        client_summary=f"Live coached call between {sess.get('rm_name')} (RM) and {sess.get('client_name')}",
+    )
+    return {"ok": True}
+
+
+@router.post("/simulate/{call_key}/end")
+async def simulate_end(call_key: str):
+    if call_key not in _SESSIONS:
+        return {"ok": True, "note": "already ended"}
+    await _finish(call_key)
+    return {"ok": True}
+
+
 async def _finish(call_key: str) -> None:
     sess = _SESSIONS.pop(call_key, None)
     if sess is None:

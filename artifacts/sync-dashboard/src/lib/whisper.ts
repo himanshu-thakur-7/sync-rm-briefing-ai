@@ -66,9 +66,16 @@ function pickVoice(): SpeechSynthesisVoice | undefined {
   );
 }
 
+// While the Coached Call theater is open it owns ALL audio sequencing —
+// dialogue voices and whispers interleave on its clock. Suppress the global
+// speakNudge path so a nudge never cancels a dialogue line mid-sentence.
+let theaterActive = false;
+export function setTheaterActive(on: boolean): void { theaterActive = on; }
+
 /** Speak a nudge if Whisper Mode is on. Cancels any still-playing nudge first —
  *  a stale tip is worse than a missed one mid-conversation. */
 export async function speakNudge(text: string, tone: string): Promise<void> {
+  if (theaterActive) return;
   if (!isWhisperOn() || !whisperSupported() || !text.trim()) return;
 
   window.speechSynthesis.cancel();
@@ -81,6 +88,43 @@ export async function speakNudge(text: string, tone: string): Promise<void> {
   u.pitch = 1.0;
   u.volume = 1.0;
   window.speechSynthesis.speak(u);
+}
+
+/** Theater-mode whisper: chime + speak regardless of the 🎧 toggle, resolving
+ *  when speech finishes so the caller can sequence dialogue around it. */
+export async function speakWhisperLine(text: string, tone: string): Promise<void> {
+  if (!whisperSupported() || !text.trim()) return;
+  await chime(tone);
+  await new Promise<void>(resolve => {
+    const u = new SpeechSynthesisUtterance(text);
+    const voice = pickVoice();
+    if (voice) u.voice = voice;
+    u.rate = 1.1;
+    u.pitch = 1.0;
+    u.volume = 0.95;
+    u.onend = () => resolve();
+    u.onerror = () => resolve();
+    // Safety: some engines drop onend — resolve after an estimated duration.
+    setTimeout(resolve, 1200 + text.split(/\s+/).length * 380);
+    window.speechSynthesis.speak(u);
+  });
+}
+
+/** Speak one dialogue line with a per-speaker voice profile. Resolves on end. */
+export function speakDialogue(text: string, opts: { pitch: number; rate: number }): Promise<void> {
+  if (!whisperSupported() || !text.trim()) return Promise.resolve();
+  return new Promise<void>(resolve => {
+    const u = new SpeechSynthesisUtterance(text);
+    const voice = pickVoice();
+    if (voice) u.voice = voice;
+    u.pitch = opts.pitch;
+    u.rate = opts.rate;
+    u.volume = 1.0;
+    u.onend = () => resolve();
+    u.onerror = () => resolve();
+    setTimeout(resolve, 1500 + text.split(/\s+/).length * 420);
+    window.speechSynthesis.speak(u);
+  });
 }
 
 /** Speak a short confirmation when the toggle is flipped on — doubles as the

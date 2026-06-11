@@ -20,6 +20,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { CRMSourceBadge, providerFromConnectionId } from "./CRMSourceBadge";
+import { CoachedCallTheater } from "./CoachedCallTheater";
 import { useConnection } from "@/lib/connection-context";
 import { usePii } from "@/lib/pii-context";
 
@@ -41,6 +42,7 @@ export function SyncPanel({ onClientSelect, onRmNameChange, onShowEmbed }: Props
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewText, setPreviewText] = useState("");
   const [coachedPending, setCoachedPending] = useState(false);
+  const [theaterOpen, setTheaterOpen] = useState(false);
   const syncMutation = useSyncNow();
   const selectedSummary = clients?.find(c => c.client_id === selectedClient);
   const { data: selectedProfile } = useGetClient(selectedClient);
@@ -184,16 +186,26 @@ export function SyncPanel({ onClientSelect, onRmNameChange, onShowEmbed }: Props
           </button>
 
           {/* Coached Call — live human↔human call with SYNC whispering */}
-          <button
-            onClick={handleCoachedCall}
-            disabled={!selectedClient || !rmPhone || coachedPending}
-            className="inline-flex w-full items-center justify-center gap-2 border-2 border-ink/40 bg-paper px-5 py-2.5 font-edit-mono text-[10px] uppercase tracking-widest text-ink/80 transition-colors hover:border-ink hover:bg-ink hover:text-cream disabled:cursor-not-allowed disabled:opacity-50"
-            title="SYNC bridges you and the client on a real call, listens live, and whispers coaching"
-          >
-            {coachedPending
-              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Placing call…</>
-              : <><Headphones className="h-3.5 w-3.5" />Coached Call · SYNC listens live</>}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleCoachedCall}
+              disabled={!selectedClient || !rmPhone || coachedPending}
+              className="inline-flex flex-1 items-center justify-center gap-2 border-2 border-ink/40 bg-paper px-3 py-2.5 font-edit-mono text-[10px] uppercase tracking-widest text-ink/80 transition-colors hover:border-ink hover:bg-ink hover:text-cream disabled:cursor-not-allowed disabled:opacity-50"
+              title="SYNC bridges you and the client on a real call, listens live, and whispers coaching"
+            >
+              {coachedPending
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Placing…</>
+                : <><Headphones className="h-3.5 w-3.5" />Coached Call</>}
+            </button>
+            <button
+              onClick={() => setTheaterOpen(true)}
+              disabled={!selectedClient}
+              className="inline-flex flex-1 items-center justify-center gap-2 border-2 border-amber-700/60 bg-amber-50 px-3 py-2.5 font-edit-mono text-[10px] uppercase tracking-widest text-amber-900 transition-colors hover:border-amber-800 hover:bg-amber-800 hover:text-paper disabled:cursor-not-allowed disabled:opacity-50"
+              title="Watch a simulated coached call — two AI voices, live whisper coaching, no phones needed"
+            >
+              ▶ Simulate Call
+            </button>
+          </div>
 
           {selectedClient && (
             <p className="border-t border-ink/15 pt-3 text-center font-serif text-[11px] italic text-ink/50">
@@ -203,6 +215,16 @@ export function SyncPanel({ onClientSelect, onRmNameChange, onShowEmbed }: Props
           )}
         </div>
       </section>
+
+      {/* Coached-call simulation theater */}
+      <CoachedCallTheater
+        open={theaterOpen}
+        onClose={() => setTheaterOpen(false)}
+        clientId={selectedClient}
+        clientName={selectedSummary?.name ?? "Vikram Desai"}
+        rmName={rmName}
+        connectionId={connectionId}
+      />
 
       {/* Briefing preview */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
