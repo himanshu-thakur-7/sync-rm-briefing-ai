@@ -96,6 +96,10 @@ class Settings(BaseSettings):
     # In production each connection would carry its own; for the demo we
     # default to "Acme" so the voice never says "your bank" unprompted.
     demo_company_name: str = "Acme"
+    # The RM's local timezone — spoken times ("Thursday 4 PM") are interpreted
+    # in this zone and converted to UTC where an API requires it (Pipedrive
+    # due_time is UTC).
+    local_timezone: str = "Asia/Kolkata"
     # Save calls target this number on stage (presenter's second phone). In
     # production the client phone would come from the CRM contact record.
     demo_client_phone: str = "+919876543210"

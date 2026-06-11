@@ -555,6 +555,23 @@ class PipedriveCRMAdapter(CRMAdapter):
                 elif not meridiem and 1 <= hour <= 7:
                     hour += 12  # business-hours default: bare 1–7 reads as PM
                 due_time = f"{hour:02d}:{minutes}"
+
+        # Pipedrive's API treats due_time as UTC and renders it in the
+        # account's display timezone — so a spoken local time must be
+        # converted, or "4 PM" lands as 9:30 PM on an IST account.
+        if due_time:
+            try:
+                from datetime import datetime as _dt, timezone as _tz
+                from zoneinfo import ZoneInfo
+                from config import settings as _settings
+                local = ZoneInfo(_settings.local_timezone or "Asia/Kolkata")
+                y, mo, dd = (int(x) for x in due_date.split("-"))
+                hh, mm = (int(x) for x in due_time.split(":"))
+                utc_dt = _dt(y, mo, dd, hh, mm, tzinfo=local).astimezone(_tz.utc)
+                due_date = utc_dt.date().isoformat()
+                due_time = utc_dt.strftime("%H:%M")
+            except Exception:
+                pass  # worst case: time shows shifted, but the meeting exists
         return due_date, due_time
 
     async def schedule_follow_up(self, client_id: str, when: str, kind: str, notes: str) -> str:
