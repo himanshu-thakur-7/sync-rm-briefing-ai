@@ -13,6 +13,7 @@ import { Header } from "@/components/Header";
 import { MetricCards } from "@/components/MetricCards";
 import { RoiLedger } from "@/components/RoiLedger";
 import { CoachingOverlay } from "@/components/CoachingOverlay";
+import { WebCallWidget } from "@/components/WebCallWidget";
 import { SyncPanel } from "@/components/SyncPanel";
 import { LiveFeed } from "@/components/LiveFeed";
 import { Comparison } from "@/components/Comparison";
@@ -159,6 +160,9 @@ export default function Dashboard() {
 
       {/* Live whisper-coaching — renders nudge cards during active calls */}
       <CoachingOverlay />
+
+      {/* Ringg browser-call widget — inbound without a phone number */}
+      <WebCallWidget />
     </div>
   );
 }
