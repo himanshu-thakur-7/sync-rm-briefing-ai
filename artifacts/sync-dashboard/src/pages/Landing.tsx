@@ -68,6 +68,14 @@ export default function Landing() {
       />
       <VoiceActionSection />
 
+      {/* Section 04½ — The Whisper (flagship) */}
+      <SectionHeader
+        num="04½"
+        kicker="The Whisper"
+        title={<>During the call, SYNC <em className="font-display italic">whispers in your ear</em>.</>}
+      />
+      <WhisperSection />
+
       {/* Numbers section */}
       <SectionHeader
         num="05"
@@ -452,6 +460,60 @@ function VoiceActionSection() {
   );
 }
 
+/* ─────────────────────────────── Whisper ────────────────────────────── */
+
+function WhisperSection() {
+  return (
+    <section id="whisper" className="border-b border-ink/15 px-4 py-16 md:px-8 md:py-24">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 md:grid-cols-12">
+        <div className="md:col-span-4">
+          <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
+            Figure 3½ · Live whisper coaching
+          </p>
+          <p className="mt-3 font-serif text-xl italic leading-snug text-ink/70">
+            While the RM talks to a client, Ringg AI transcribes the call in
+            real time. SYNC reads the stream, and when it hears hesitation, a
+            competitor, or a buying signal — it murmurs one line into the RM's
+            earbud. When it hears a <em>commitment</em>, it files the meeting
+            in the CRM. One tap to approve.
+          </p>
+          <p className="mt-4 font-edit-mono text-[10px] uppercase tracking-widest text-ink/40">
+            Ringg in-call STT → SYNC coaching engine → earbud + CRM
+          </p>
+        </div>
+
+        <div className="md:col-span-8 space-y-3">
+          {[
+            { heard: "Honestly, I've been a bit worried about the repayments…", tone: "Watch", cls: "border-red-700/50 bg-red-50 text-red-900", whisper: "Acknowledge the worry, then pivot to the relief angle." },
+            { heard: "Another bank offered me a better rate last week.", tone: "Watch", cls: "border-red-700/50 bg-red-50 text-red-900", whisper: "Competitor signal — flag for retention, counter on service." },
+            { heard: "Okay — tell me more, that sounds good.", tone: "Opening", cls: "border-emerald-700/50 bg-emerald-50 text-emerald-900", whisper: "Buying signal — move to the specific offer now." },
+            { heard: "Okay, Thursday at four works.", tone: "Commitment", cls: "border-ink bg-paper text-ink", whisper: "Schedule the meeting — Thursday 4:00 PM → one tap, it's on the Pipedrive calendar." },
+          ].map((c, i) => (
+            <div key={i} className="border border-ink/15 bg-paper">
+              <div className="grid grid-cols-1 divide-y divide-ink/15 md:grid-cols-12 md:divide-x md:divide-y-0">
+                <div className="px-4 py-4 md:col-span-6">
+                  <p className="font-edit-mono text-[9px] uppercase tracking-widest text-ink/50">Client says · heard via Ringg STT</p>
+                  <p className="mt-1 font-serif text-base italic text-ink/90">"{c.heard}"</p>
+                </div>
+                <div className={`px-4 py-4 md:col-span-6 border-l-4 ${c.cls}`}>
+                  <p className="font-edit-mono text-[9px] font-bold uppercase tracking-widest opacity-70">
+                    {c.tone} · SYNC whispers
+                  </p>
+                  <p className="mt-1 font-serif text-sm italic leading-snug">{c.whisper}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+          <p className="pt-2 text-center font-serif text-sm italic text-ink/50">
+            Watch it live: dashboard → <span className="font-edit-mono not-italic text-[11px]">▶ Simulations</span> —
+            coached call, morning standup, and an autonomous save-call with warm transfer.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ─────────────────────────────── Numbers ────────────────────────────── */
 
 function NumbersSection() {
@@ -515,9 +577,10 @@ function SpecsSection() {
 
         <div className="md:col-span-8 grid grid-cols-1 gap-x-12 gap-y-6 sm:grid-cols-2">
           {[
-            { label: "Voice", body: "Ringg AI · outbound + inbound · 13 custom variables · natural conversational tone" },
+            { label: "Voice", body: "Ringg AI · outbound + inbound agents · in-call STT · warm transfer · 13 custom variables" },
+            { label: "Live Coaching", body: "Ringg transcript stream → SYNC whisper engine → earbud nudges + commitment detection → CRM writes" },
             { label: "Briefing AI", body: "OpenAI GPT-4o · template fallback when offline" },
-            { label: "Voice Commands", body: "Whisper STT · GPT-4o function calling · 8-tool schema" },
+            { label: "Voice Commands", body: "Ringg Parrot STT (Whisper fallback) · GPT-4o function calling · 8-tool schema" },
             { label: "Backend", body: "Python 3.11 · FastAPI · SQLModel · aiosqlite · Authlib · httpx · tenacity" },
             { label: "Frontend", body: "React 19 · Vite · TypeScript · Tailwind v4 · shadcn/ui · TanStack Query" },
             { label: "Real-time", body: "WebSocket /ws/dashboard · SSE for transcript streaming" },

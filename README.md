@@ -26,6 +26,21 @@ SYNC is the **voice-AI integration layer** that plugs into the CRM your business
 
 ---
 
+## What's new in v3 — The Live Co-Pilot (Ringg AI end-to-end)
+
+| Capability | How it works |
+|---|---|
+| **🎧 Live whisper coaching** | Ringg transcribes the call in real time (in-call STT); SYNC reads the stream and murmurs one-line tactical nudges into the RM's earbud — hesitation, competitor mentions, buying signals |
+| **✍️ Commitment → CRM, one tap** | SYNC hears *"Okay, Thursday at four works"* → proposes the action → RM approves → a real **timed calendar meeting** lands in Pipedrive (timezone-correct) |
+| **📞 Coached Calls** | Twilio click-to-call bridge: both legs' audio forked → Ringg Parrot STT → coaching engine. Backup: Ringg's agent dials the client, warm-transfers the RM in, stays on as a silent transcriber |
+| **▶ Live Simulations** | Three one-click in-app scenarios with natural voices: Coached Call, Morning Standup (SYNC answers from **live Pipedrive data**), Save Call with warm transfer. Nudges & actions are computed live by the real engine — never scripted |
+| **🗣️ Ringg Parrot STT** | Dashboard-mic transcription runs Ringg-first (Whisper only as fallback) |
+| **💰 ROI Ledger** | Hours saved, ₹ opportunity surfaced, complaints caught — counts up live on the dashboard |
+
+**The Ringg stack inside SYNC:** outbound + inbound agents, in-call STT, mid-call function tools (`ask_crm` / `log_action`), warm transfer, knowledge bases, and Parrot STT for the dashboard mic. Voice is Ringg end-to-end — OpenAI only does text intelligence (briefing copy, post-call analysis, coaching language).
+
+---
+
 ## Architecture
 
 ```

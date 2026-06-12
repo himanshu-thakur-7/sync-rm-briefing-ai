@@ -54,7 +54,8 @@ async def broadcast_event(event: dict) -> None:
             _ws_clients.remove(ws)
 
 
-async def emit_transcript_chunk(call_id: str, text: str, client_summary: str = "") -> None:
+async def emit_transcript_chunk(call_id: str, text: str, client_summary: str = "",
+                                coach: bool = True) -> None:
     """Single funnel for every transcript line, real or simulated.
 
     Does three things:
@@ -74,7 +75,8 @@ async def emit_transcript_chunk(call_id: str, text: str, client_summary: str = "
     # Live coaching — best-effort, never block the transcript stream on it.
     try:
         from services import coaching_engine
-        nudge = await coaching_engine.observe(call_id, text, client_summary=client_summary)
+        nudge = (await coaching_engine.observe(call_id, text, client_summary=client_summary)
+                 if coach else None)
         if nudge is not None:
             await broadcast_event({
                 "type": "coaching_nudge",

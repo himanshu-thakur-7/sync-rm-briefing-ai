@@ -201,9 +201,9 @@ export function SyncPanel({ onClientSelect, onRmNameChange, onShowEmbed }: Props
               onClick={() => setTheaterOpen(true)}
               disabled={!selectedClient}
               className="inline-flex flex-1 items-center justify-center gap-2 border-2 border-amber-700/60 bg-amber-50 px-3 py-2.5 font-edit-mono text-[10px] uppercase tracking-widest text-amber-900 transition-colors hover:border-amber-800 hover:bg-amber-800 hover:text-paper disabled:cursor-not-allowed disabled:opacity-50"
-              title="Watch a simulated coached call — two AI voices, live whisper coaching, no phones needed"
+              title="Live simulations — coached call, morning standup, autonomous save-call with warm transfer. AI voices, real coaching engine, real CRM writes."
             >
-              ▶ Simulate Call
+              ▶ Simulations
             </button>
           </div>
 

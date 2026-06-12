@@ -1,0 +1,20 @@
+# Keeps the Render free-tier backend warm (it sleeps after 15 min idle;
+# cold start ≈ 30–60 s — fatal in a live demo). GitHub cron is best-effort
+# (can lag a few minutes) but comfortably beats the 15-minute idle window.
+name: keep-backend-warm
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping healthz
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 \
+            https://sync-backend-u9rv.onrender.com/api/healthz || echo "000")
+          echo "healthz → $code"
+          # Don't fail the workflow on a transient miss — the next tick retries.

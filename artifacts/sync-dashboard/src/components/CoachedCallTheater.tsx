@@ -19,15 +19,26 @@ import {
 import { useWebSocket, WebSocketMessage } from "@/hooks/use-websocket";
 import { playChime, setTheaterActive, speakDialogue, whisperSupported } from "@/lib/whisper";
 
-interface ScriptLine { speaker: "rm" | "client"; text: string; }
+type Speaker = "rm" | "client" | "sync" | "event";
+type Scenario = "coached" | "standup" | "savecall";
+interface ScriptLine { speaker: Speaker; text: string; }
 interface Nudge { text: string; tone: "warn" | "opportunity" | "suggest"; }
 interface ActionSuggestion { id: string; tool: string; args: Record<string, unknown>; preview: string; }
 interface TranscriptEntry {
-  kind: "line" | "nudge" | "action";
+  kind: "line" | "nudge" | "action" | "event";
   speaker?: string; text: string; tone?: string;
   id?: string; tool?: string; args?: Record<string, unknown>;
 }
 type ActionState = "pending" | "executing" | "done" | "skipped" | "failed";
+
+const SCENARIOS: Array<{ id: Scenario; label: string; blurb: string }> = [
+  { id: "coached",  label: "Coached Call",
+    blurb: "RM ↔ client live call. SYNC listens via the Ringg transcript stream and whispers coaching." },
+  { id: "standup",  label: "Morning Standup",
+    blurb: "SYNC dials the RM and answers questions from LIVE Pipedrive data — Ringg's conversational agent, simulated." },
+  { id: "savecall", label: "Save Call + Transfer",
+    blurb: "Ringg's agent calls an at-risk client autonomously, then warm-transfers your phone in." },
+];
 
 interface Props {
   open: boolean;
@@ -42,6 +53,7 @@ interface Props {
 // clearly as two people on every browser without voice-name guessing.
 const RM_VOICE = { pitch: 0.85, rate: 1.0 };
 const CLIENT_VOICE = { pitch: 1.12, rate: 0.97 };
+const SYNC_VOICE = { pitch: 1.0, rate: 1.04 };
 
 const TONE_META: Record<string, { cls: string; Icon: typeof AlertTriangle; label: string }> = {
   warn:        { cls: "border-red-700/50 bg-red-50 text-red-900",             Icon: AlertTriangle, label: "Watch" },
@@ -51,8 +63,10 @@ const TONE_META: Record<string, { cls: string; Icon: typeof AlertTriangle; label
 
 export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName, connectionId }: Props) {
   const [phase, setPhase] = useState<"idle" | "ringing" | "live" | "ended">("idle");
+  const [scenario, setScenario] = useState<Scenario>("coached");
+  const [labels, setLabels] = useState<Record<string, string>>({});
   const [entries, setEntries] = useState<TranscriptEntry[]>([]);
-  const [speaking, setSpeaking] = useState<"rm" | "client" | "whisper" | null>(null);
+  const [speaking, setSpeaking] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [nudgeCount, setNudgeCount] = useState(0);
   const [actionStatus, setActionStatus] = useState<Record<string, ActionState>>({});
@@ -68,7 +82,8 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
   // ── Natural voices (ElevenLabs via backend proxy, cached server-side). ──
   // Falls back to browser speechSynthesis per-line when the key isn't set
   // or a fetch fails, so the sim always plays.
-  const fetchAudio = async (text: string, speaker: "rm" | "client"): Promise<Blob | null> => {
+  const fetchAudio = async (text: string, speaker: Speaker): Promise<Blob | null> => {
+    if (speaker === "event") return null;
     if (!premiumTtsRef.current) return null;
     try {
       const r = await fetch("/api/v1/coached-calls/tts", {
@@ -208,13 +223,17 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
       const r = await fetch("/api/v1/coached-calls/simulate/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ client_id: clientId, client_name: clientName, rm_name: rmName, connection_id: connectionId }),
+        body: JSON.stringify({
+          client_id: clientId, client_name: clientName, rm_name: rmName,
+          connection_id: connectionId, scenario,
+        }),
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const { call_id, script, labels, premium_tts } = await r.json() as
-        { call_id: string; script: ScriptLine[]; labels: { rm: string; client: string }; premium_tts?: boolean };
+      const { call_id, script, labels: lbls, premium_tts } = await r.json() as
+        { call_id: string; script: ScriptLine[]; labels: Record<string, string>; premium_tts?: boolean };
       callIdRef.current = call_id;
       premiumTtsRef.current = !!premium_tts;
+      setLabels(lbls);
 
       // Prefetch one line ahead so natural-voice playback has no gaps
       // (sequential, not parallel — free-tier providers cap concurrency).
@@ -228,7 +247,19 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
         if (stopRef.current) break;
         const line = script[i];
         const audioPromise = nextAudio;
-        const label = line.speaker === "rm" ? labels.rm : labels.client;
+
+        // Transfer marker — ring the "RM's phone" and banner it, no speech.
+        if (line.speaker === "event") {
+          setEntries(prev => [...prev, { kind: "event", text: line.text }]);
+          await ringTone();
+          await ringTone();
+          nextAudio = i + 1 < script.length
+            ? fetchAudio(script[i + 1].text, script[i + 1].speaker)
+            : Promise.resolve(null);
+          continue;
+        }
+
+        const label = lbls[line.speaker] ?? line.speaker;
         setEntries(prev => [...prev, { kind: "line", speaker: label, text: line.text }]);
         setSpeaking(line.speaker);
         // Post to the real coaching pipeline while the line is being spoken —
@@ -247,7 +278,8 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
         if (blob && !stopRef.current) {
           await playBlob(blob);
         } else if (!stopRef.current) {
-          await speakDialogue(line.text, line.speaker === "rm" ? RM_VOICE : CLIENT_VOICE);
+          await speakDialogue(line.text,
+            line.speaker === "rm" ? RM_VOICE : line.speaker === "sync" ? SYNC_VOICE : CLIENT_VOICE);
         }
         setSpeaking(null);
         if (stopRef.current) break;
@@ -285,7 +317,7 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
       <DialogContent className="rounded-none border-ink bg-paper sm:max-w-[620px]">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between font-edit-mono text-[10px] uppercase tracking-widest text-ink/60">
-            <span>§ Coached Call · Live Simulation</span>
+            <span>§ Live Simulations · Ringg AI voice stack</span>
             {phase === "live" && (
               <span className="tabular-nums text-emerald-800">
                 ● {String(Math.floor(elapsed / 60)).padStart(2, "0")}:{String(elapsed % 60).padStart(2, "0")}
@@ -293,28 +325,54 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
             )}
           </DialogTitle>
           <DialogDescription className="font-serif text-[12px] italic text-ink/60">
-            Two AI voices play the call; every line streams through SYNC's real
-            coaching engine — the whispers below are computed live, not scripted.
+            {SCENARIOS.find(s => s.id === scenario)?.blurb} The whispers and
+            actions below are computed live by SYNC's engine — not scripted.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Speakers */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Scenario tabs */}
+        <div className="flex gap-1 border-b border-ink/15">
+          {SCENARIOS.map(s => (
+            <button
+              key={s.id}
+              onClick={() => { if (phase === "idle" || phase === "ended") { setScenario(s.id); setEntries([]); setPhase("idle"); } }}
+              disabled={phase === "ringing" || phase === "live"}
+              className={`px-3 py-1.5 font-edit-mono text-[10px] uppercase tracking-widest transition-colors disabled:opacity-40 ${
+                scenario === s.id
+                  ? "border-x border-t border-ink bg-paper font-bold text-ink"
+                  : "text-ink/50 hover:text-ink"
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Speakers — derived from the scenario's cast */}
+        <div className={`grid gap-3 ${scenario === "savecall" ? "grid-cols-3" : "grid-cols-2"}`}>
+          {scenario !== "coached" && (
+            <SpeakerCard name="SYNC" role="Ringg AI agent" active={speaking === "sync"} />
+          )}
           <SpeakerCard name={rmName} role="Relationship Manager" active={speaking === "rm"} />
-          <SpeakerCard name={clientName} role="Client" active={speaking === "client"} />
+          {scenario !== "standup" && (
+            <SpeakerCard name={clientName} role="Client" active={speaking === "client"} />
+          )}
         </div>
 
         {/* Transcript + nudges */}
         <div ref={scrollRef} className="h-64 overflow-y-auto border border-ink/15 bg-ink/[0.015] p-3">
           {phase === "idle" && (
             <p className="flex h-full items-center justify-center text-center font-serif text-sm italic text-ink/40">
-              Press play. {clientFirst}'s line will ring, the conversation runs,
-              and SYNC whispers coaching as it hears trouble — or opportunity.
+              {scenario === "standup"
+                ? `Press play. SYNC dials ${rmName} for the morning rundown — and answers questions from live Pipedrive data.`
+                : scenario === "savecall"
+                  ? `Press play. SYNC's agent calls ${clientFirst} about the missed EMIs — and warm-transfers ${rmName} in when asked.`
+                  : `Press play. ${clientFirst}'s line rings, the conversation runs, and SYNC whispers coaching as it hears trouble — or opportunity.`}
             </p>
           )}
           {phase === "ringing" && (
             <p className="flex h-full items-center justify-center font-edit-mono text-[11px] uppercase tracking-widest text-ink/50 animate-pulse">
-              Ringing {clientFirst}…
+              Ringing {scenario === "standup" ? rmName : clientFirst}…
             </p>
           )}
           <div className="space-y-2">
@@ -324,6 +382,11 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
                   <span className="font-edit-mono text-[10px] font-bold uppercase tracking-widest text-ink/45">{e.speaker}</span>
                   {"  "}{e.text}
                 </p>
+              ) : e.kind === "event" ? (
+                <div key={i} className="border-2 border-dashed border-ink/30 bg-amber-50/60 px-3 py-2 text-center font-edit-mono text-[10px] uppercase tracking-widest text-amber-900"
+                     style={{ animation: "coachIn 0.25s ease-out both" }}>
+                  📞 Warm transfer — {rmName}'s phone rings (on demo day this is a real Ringg transfer to your cell)
+                </div>
               ) : e.kind === "nudge" ? (
                 <NudgeRow key={i} text={e.text} tone={e.tone ?? "suggest"} />
               ) : (
@@ -363,6 +426,11 @@ export function CoachedCallTheater({ open, onClose, clientId, clientName, rmName
             </button>
           )}
         </div>
+
+        <p className="text-center font-edit-mono text-[9px] uppercase tracking-widest text-ink/40">
+          Production stack: Ringg AI agents place &amp; transcribe the calls (in-call STT + Parrot STT) ·
+          SYNC coaches on the transcript stream · writes land in Pipedrive
+        </p>
       </DialogContent>
     </Dialog>
   );

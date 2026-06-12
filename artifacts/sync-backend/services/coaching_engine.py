@@ -228,7 +228,7 @@ async def detect_action(call_id: str, line: str) -> Optional[ActionSuggestion]:
 
     # Deliverable promised: "I'll send the details / proposal / numbers".
     if "create_task" not in fired:
-        if _re.search(r"\b(i(?:'| wi)ll send|send (?:me|you|over) the)\b", low) and \
+        if _re.search(r"\b(i(?:'| wi)ll send|send (?:me|you|him|her|them|over) the)\b", low) and \
            _re.search(r"\b(details|numbers|proposal|brochure|documents?)\b", low):
             fired.add("create_task")
             from datetime import date, timedelta

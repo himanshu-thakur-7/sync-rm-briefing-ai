@@ -358,11 +358,89 @@ def _build_sim_script(client_first: str, rm_first: str, company: str) -> list[di
     ]
 
 
+def _build_savecall_script(client_first: str, rm_first: str, company: str) -> list[dict]:
+    """Autonomous save-call: Ringg's agent talks to the client, then warm-
+    transfers the RM in. 'event' lines are visual markers (ring + banner)."""
+    return [
+        {"speaker": "sync",   "text": f"Hi {client_first}, this is SYNC calling on behalf of {company}. This call may be recorded. Do you have a quick minute?"},
+        {"speaker": "client", "text": "Uh, okay — what's this about?"},
+        {"speaker": "sync",   "text": "It's about your business loan account. The last two EMIs were missed, and we'd like to help before it affects your credit score."},
+        {"speaker": "client", "text": "Yeah… honestly things have been tight. I've been worried about this."},
+        {"speaker": "sync",   "text": "I completely understand. There's a restructuring option that could cut your monthly outgo by almost thirty percent."},
+        {"speaker": "client", "text": "That sounds helpful, but I'd rather discuss the details with my relationship manager."},
+        {"speaker": "sync",   "text": f"Of course — let me bring {rm_first} on the line right now. One moment."},
+        {"speaker": "event",  "text": "transfer"},
+        {"speaker": "rm",     "text": f"Hi {client_first}, {rm_first} here. I'm looking at the restructuring numbers right now."},
+        {"speaker": "client", "text": "Thanks for jumping on. Can we go through it this week?"},
+        {"speaker": "rm",     "text": "Absolutely — does Thursday at 4 PM work for you?"},
+        {"speaker": "client", "text": "Okay, Thursday at four works."},
+        {"speaker": "rm",     "text": f"Booked. You'll get the details shortly. We've got you, {client_first}."},
+    ]
+
+
+async def _build_standup_script(rm_first: str, connection_id: Optional[str]) -> list[dict]:
+    """Morning standup Q&A — the SYNC voice answers from LIVE CRM data.
+
+    Pulls two real client profiles through the active adapter so the answers
+    judges hear are genuinely what's in Pipedrive right now. Falls back to the
+    seeded names if the CRM is unreachable.
+    """
+    # Defaults in case the CRM is unreachable mid-demo.
+    c1 = {"first": "Vikram", "risk": "high", "factor": "credit card at ninety-two percent",
+          "days": 22, "pitch": "a credit-card to personal-loan transfer that saves about three lakh in interest"}
+    c2 = {"first": "Priya", "risk": "very low", "detail": "her portfolio crossed fifty lakh — wealth-management upgrade is the play"}
+    try:
+        from services import connection_registry
+        adapter = (await connection_registry.crm_for(connection_id)
+                   if connection_id else await connection_registry.default_adapter())
+        clients = await adapter.list_all()
+        by_first = {c.name.split(" ")[0].lower(): c for c in clients}
+        v = by_first.get("vikram") or (clients[0] if clients else None)
+        p = by_first.get("priya") or (clients[1] if len(clients) > 1 else None)
+        if v:
+            full = await adapter.get_client(v.client_id)
+            if full:
+                c1 = {
+                    "first": v.name.split(" ")[0],
+                    "risk": full.risk.score.replace("_", " "),
+                    "factor": (full.risk.factors[0] if full.risk.factors else "no fresh flags"),
+                    "days": full.last_rm_interaction_days_ago,
+                    "pitch": (full.cross_sell[0].pitch_angle or full.cross_sell[0].product)
+                             if full.cross_sell else "a portfolio review",
+                }
+        if p:
+            fullp = await adapter.get_client(p.client_id)
+            if fullp:
+                c2 = {
+                    "first": p.name.split(" ")[0],
+                    "risk": fullp.risk.score.replace("_", " "),
+                    "detail": (fullp.cross_sell[0].pitch_angle if fullp.cross_sell
+                               else f"last contact {fullp.last_rm_interaction_days_ago} days ago, nothing urgent"),
+                }
+    except Exception as e:
+        logger.warning("Standup sim: live CRM pull failed, using defaults: %s", e)
+
+    return [
+        {"speaker": "sync", "text": f"Good morning {rm_first}! Quick rundown: {c1['first']} is flagged on the radar, and you have follow-ups due today. Ready?"},
+        {"speaker": "rm",   "text": "Morning! Give me the headline."},
+        {"speaker": "sync", "text": f"{c1['first']} is your priority — risk is {c1['risk']}, {c1['factor']}. Last touch was {c1['days']} days ago."},
+        {"speaker": "rm",   "text": f"Tell me more about {c1['first']}."},
+        {"speaker": "sync", "text": f"The play is {c1['pitch']}. I'd lead with empathy — he's been under cash-flow pressure."},
+        {"speaker": "rm",   "text": "Got it. Create a task to send him the restructuring proposal tomorrow."},
+        {"speaker": "sync", "text": "Queued it for your approval — one tap and it's in Pipedrive. What else?"},
+        {"speaker": "rm",   "text": f"What's {c2['first']}'s status?"},
+        {"speaker": "sync", "text": f"{c2['first']} is {c2['risk']} risk. {c2['detail']}."},
+        {"speaker": "rm",   "text": "Perfect. That's all for now."},
+        {"speaker": "sync", "text": "Have a great day — I'll keep the radar warm."},
+    ]
+
+
 class SimStartRequest(BaseModel):
     client_id: str = ""
     client_name: str = "Vikram Desai"
     rm_name: str = "Himanshu"
     connection_id: Optional[str] = None
+    scenario: str = "coached"   # coached | standup | savecall
 
 
 class SimLineRequest(BaseModel):
@@ -375,6 +453,21 @@ async def simulate_start(body: SimStartRequest):
     call_key = f"sim_{uuid.uuid4().hex[:10]}"
     client_first = (body.client_name or "the client").split()[0]
     rm_first = (body.rm_name or "the RM").split()[0]
+    scenario = body.scenario if body.scenario in ("coached", "standup", "savecall") else "coached"
+
+    if scenario == "standup":
+        script = await _build_standup_script(rm_first, body.connection_id)
+        labels = {"sync": "SYNC", "rm": rm_first}
+        coach = False   # the standup is Q&A, not a client call — no whisper noise
+    elif scenario == "savecall":
+        script = _build_savecall_script(client_first, rm_first, settings.demo_company_name)
+        labels = {"sync": "SYNC", "client": client_first, "rm": rm_first}
+        coach = True
+    else:
+        script = _build_sim_script(client_first, rm_first, settings.demo_company_name)
+        labels = {"rm": rm_first, "client": client_first}
+        coach = True
+
     _SESSIONS[call_key] = {
         "client_id": body.client_id,
         "client_name": body.client_name,
@@ -384,16 +477,20 @@ async def simulate_start(body: SimStartRequest):
         "lines": [],
         "started_at": datetime.now(timezone.utc).isoformat(),
         "simulated": True,
+        "scenario": scenario,
+        "coach": coach,
+        "labels": labels,
     }
 
     from routers.webhooks import broadcast_event
     await broadcast_event({"type": "coached_call_started", "data": {
-        "call_id": call_key, "route": "simulation", "client_name": body.client_name,
+        "call_id": call_key, "route": f"simulation:{scenario}", "client_name": body.client_name,
     }})
     return {
         "call_id": call_key,
-        "script": _build_sim_script(client_first, rm_first, settings.demo_company_name),
-        "labels": {"rm": rm_first, "client": client_first},
+        "scenario": scenario,
+        "script": script,
+        "labels": labels,
         "premium_tts": bool(settings.elevenlabs_api_key),
     }
 
@@ -412,6 +509,10 @@ _CLIENT_VOICE_OVERRIDES = {
     "priya": "EXAVITQu4vr4xnSDxMaL",   # "Sarah" — mature, reassuring, confident
     "sneha": "cgSgspJ2msm6clMCkdW9",   # "Jessica" — bright, warm, younger
 }
+
+# The SYNC agent's own voice (standup + save-call scenarios) — distinct from
+# every RM/client voice so the AI reads as a third party on the line.
+_SYNC_AGENT_VOICE = "XrExE9yKIg1WjnnlVkGX"  # "Matilda" — knowledgeable, professional
 
 
 def _client_voice(client_name: str) -> str:
@@ -434,13 +535,18 @@ async def theater_tts(body: TTSRequest):
     """
     if not settings.elevenlabs_api_key:
         raise HTTPException(503, "ElevenLabs not configured (set ELEVENLABS_API_KEY)")
-    if body.speaker not in ("rm", "client"):
-        raise HTTPException(400, "speaker must be 'rm' or 'client'")
+    if body.speaker not in ("rm", "client", "sync"):
+        raise HTTPException(400, "speaker must be 'rm', 'client' or 'sync'")
     text = body.text.strip()
     if not text or len(text) > 600:
         raise HTTPException(400, "text must be 1–600 chars")
 
-    voice_id = settings.elevenlabs_voice_rm if body.speaker == "rm" else _client_voice(body.client_name)
+    if body.speaker == "rm":
+        voice_id = settings.elevenlabs_voice_rm
+    elif body.speaker == "sync":
+        voice_id = _SYNC_AGENT_VOICE
+    else:
+        voice_id = _client_voice(body.client_name)
     # Lower stability + style exaggeration = audibly human intonation, not a
     # flat screen-reader cadence. Settings ride in the cache key so tuning
     # them invalidates stale audio automatically.
@@ -506,13 +612,19 @@ async def simulate_line(call_key: str, body: SimLineRequest):
     sess = _SESSIONS.get(call_key)
     if sess is None:
         raise HTTPException(404, "Simulation not found (or already ended)")
-    label = (sess.get("rm_name") if body.speaker == "rm" else sess.get("client_name") or "Client").split()[0]
+    if body.speaker == "event":
+        return {"ok": True}  # visual markers don't enter the transcript
+    labels = sess.get("labels") or {}
+    label = labels.get(body.speaker) or (
+        (sess.get("rm_name") if body.speaker == "rm" else sess.get("client_name") or "Client").split()[0]
+    )
     line = f"{label}: {body.text}"
     sess["lines"].append(line)
     from routers.webhooks import emit_transcript_chunk
     await emit_transcript_chunk(
         call_key, line,
         client_summary=f"Live coached call between {sess.get('rm_name')} (RM) and {sess.get('client_name')}",
+        coach=sess.get("coach", True),
     )
     return {"ok": True}
 
