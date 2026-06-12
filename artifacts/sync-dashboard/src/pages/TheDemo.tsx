@@ -1,0 +1,594 @@
+/**
+ * "The Demo" — the single flagship arc the judges run.
+ *
+ *   Greeting → priority lookup → "shall I connect Vikram?" → conference bridge
+ *   → RM speaks live, OpenAI-voiced client replies → SYNC whispers coaching
+ *   → commitment cards → one-tap approve → real Pipedrive write → recap.
+ *
+ * Two entry points:
+ *   "Run the demo"  — fully scripted theater (no phone, no credits, browser-only)
+ *   "Call the agent" — opens the Ringg web-call widget; identical arc on real telephony
+ *
+ * Every line in the bridge runs through the REAL coaching engine, so the
+ * whispers + commitment detections are computed live (not scripted).
+ */
+import { useEffect, useRef, useState } from "react";
+import { useLocation } from "wouter";
+import {
+  ArrowLeft, Headphones, Phone, Play, PhoneOff, Mic,
+  AlertTriangle, Sparkles, Lightbulb, CalendarPlus, Check, Loader2, X,
+} from "lucide-react";
+import { useWebSocket, WebSocketMessage } from "@/hooks/use-websocket";
+import { playChime, setTheaterActive, speakDialogue, whisperSupported } from "@/lib/whisper";
+
+type Phase =
+  | "idle"
+  | "ringing"
+  | "concierge"     // RM ↔ SYNC concierge (briefing + priority)
+  | "bridging"      // SYNC dials the client; brief ring
+  | "bridge"        // RM speaks, client (OpenAI) replies, whispers fire
+  | "wrapup"
+  | "ended";
+
+interface Nudge { text: string; tone: "warn" | "opportunity" | "suggest"; }
+interface ActionSuggestion { id: string; tool: string; args: Record<string, unknown>; preview: string; }
+type ActionState = "pending" | "executing" | "done" | "skipped" | "failed";
+interface Entry {
+  kind: "line" | "nudge" | "action" | "event";
+  speaker?: string; text: string; tone?: string;
+  id?: string; tool?: string; args?: Record<string, unknown>;
+}
+
+interface BridgeOpenEvent {
+  bridge_id: string; client_id: string; client_name: string;
+  client_brief: string; connection_id: string;
+}
+
+const TONE_META: Record<string, { cls: string; Icon: typeof AlertTriangle; label: string }> = {
+  warn:        { cls: "border-red-700/50 bg-red-50 text-red-900",             Icon: AlertTriangle, label: "Watch" },
+  opportunity: { cls: "border-emerald-700/50 bg-emerald-50 text-emerald-900", Icon: Sparkles,      label: "Opening" },
+  suggest:     { cls: "border-ink/40 bg-ink/[0.04] text-ink",                 Icon: Lightbulb,     label: "Nudge" },
+};
+
+const RM_VOICE = { pitch: 0.85, rate: 1.0 };
+const SYNC_VOICE = { pitch: 1.0, rate: 1.04 };
+const CLIENT_FALLBACK_VOICE = { pitch: 1.12, rate: 0.97 };
+
+const hasBrowserSTT = typeof window !== "undefined"
+  && ("webkitSpeechRecognition" in window || "SpeechRecognition" in window);
+
+const RM_NAME = "Himanshu";
+
+export default function TheDemo() {
+  const [, navigate] = useLocation();
+
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [actionStatus, setActionStatus] = useState<Record<string, ActionState>>({});
+  const [speaking, setSpeaking] = useState<"sync" | "rm" | "client" | "whisper" | null>(null);
+  const [bridge, setBridge] = useState<BridgeOpenEvent | null>(null);
+  const [rmListening, setRmListening] = useState(false);
+  const [rmInterim, setRmInterim] = useState("");
+
+  const callIdRef = useRef<string>("");
+  const nudgeQueue = useRef<Nudge[]>([]);
+  const actionQueue = useRef<ActionSuggestion[]>([]);
+  const stopRef = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const sttRef = useRef<any>(null);
+
+  // Subscribe to coaching + bridge events for our call.
+  useWebSocket({
+    onMessage: (msg: WebSocketMessage) => {
+      const id = msg.data?.call_id;
+      if (msg.type === "bridge_open" && id === callIdRef.current) {
+        setBridge(msg.data as BridgeOpenEvent);
+      }
+      if (!callIdRef.current || id !== callIdRef.current) return;
+      if (msg.type === "coaching_nudge") {
+        const tone = (["warn", "opportunity", "suggest"].includes(msg.data?.tone)
+          ? msg.data.tone : "suggest") as Nudge["tone"];
+        nudgeQueue.current.push({ text: msg.data?.text ?? "", tone });
+      } else if (msg.type === "coaching_action_suggestion") {
+        actionQueue.current.push({
+          id: msg.data?.suggestion_id ?? Math.random().toString(36).slice(2, 10),
+          tool: msg.data?.tool ?? "",
+          args: msg.data?.args ?? {},
+          preview: msg.data?.preview ?? "",
+        });
+      }
+    },
+  });
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [entries]);
+
+  useEffect(() => {
+    if (phase === "idle" || phase === "ended") return;
+    setTheaterActive(true);
+    return () => { setTheaterActive(false); };
+  }, [phase]);
+
+  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+  const ringTone = async () => {
+    try {
+      const ctx = new AudioContext();
+      for (const at of [0, 0.45]) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.value = 425;
+        gain.gain.setValueAtTime(0.07, ctx.currentTime + at);
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime + at + 0.35);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(ctx.currentTime + at); osc.stop(ctx.currentTime + at + 0.36);
+      }
+      await sleep(1100);
+      ctx.close();
+    } catch { /* nope */ }
+  };
+
+  const playBlob = (blob: Blob): Promise<void> => new Promise(resolve => {
+    const url = URL.createObjectURL(blob);
+    const a = new Audio(url);
+    audioRef.current = a;
+    const done = () => { URL.revokeObjectURL(url); audioRef.current = null; resolve(); };
+    a.onended = done; a.onerror = done;
+    a.play().catch(done);
+  });
+
+  const playUrl = (url: string): Promise<void> => new Promise(resolve => {
+    const a = new Audio(url); audioRef.current = a;
+    const done = () => { audioRef.current = null; resolve(); };
+    a.onended = done; a.onerror = done;
+    a.play().catch(done);
+  });
+
+  const fetchSyncAudio = async (text: string): Promise<Blob | null> => {
+    try {
+      const r = await fetch("/api/v1/coached-calls/tts", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, speaker: "sync" }),
+      });
+      if (!r.ok) return null;
+      return await r.blob();
+    } catch { return null; }
+  };
+
+  const postLine = (speaker: string, text: string) =>
+    fetch(`/api/v1/coached-calls/simulate/${callIdRef.current}/line`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ speaker, text }),
+    }).catch(() => { /* sim keeps playing */ });
+
+  const drain = async () => {
+    while (nudgeQueue.current.length > 0 && !stopRef.current) {
+      const n = nudgeQueue.current.shift()!;
+      setSpeaking("whisper");
+      await playChime(n.tone);
+      setEntries(prev => [...prev, { kind: "nudge", text: n.text, tone: n.tone }]);
+      await sleep(700);
+      setSpeaking(null);
+    }
+    while (actionQueue.current.length > 0 && !stopRef.current) {
+      const a = actionQueue.current.shift()!;
+      await playChime("opportunity");
+      setActionStatus(s => ({ ...s, [a.id]: "pending" }));
+      setEntries(prev => [...prev, {
+        kind: "action", id: a.id, tool: a.tool, args: a.args, text: a.preview,
+      }]);
+      await sleep(500);
+    }
+  };
+
+  const approveAction = async (id: string, tool: string, args: Record<string, unknown>) => {
+    setActionStatus(s => ({ ...s, [id]: "executing" }));
+    try {
+      const r = await fetch("/api/v1/voice/commands/execute", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tool,
+          args: { ...args, connection_id: bridge?.connection_id, client_id: bridge?.client_id },
+          confirm: true,
+        }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const result = await r.json();
+      if (result?.status === "failed" || result?.error) throw new Error(result.error || "rejected");
+      setActionStatus(s => ({ ...s, [id]: "done" }));
+    } catch { setActionStatus(s => ({ ...s, [id]: "failed" })); }
+  };
+
+  // ── Concierge segment: SYNC voices, scripted RM lines we narrate aloud ──
+  const sayAsSync = async (text: string) => {
+    setEntries(prev => [...prev, { kind: "line", speaker: "SYNC", text }]);
+    setSpeaking("sync");
+    postLine("sync", text);
+    const blob = await fetchSyncAudio(text);
+    if (blob && !stopRef.current) await playBlob(blob);
+    else if (!stopRef.current) await speakDialogue(text, SYNC_VOICE);
+    setSpeaking(null);
+  };
+
+  const sayAsRM = async (text: string) => {
+    setEntries(prev => [...prev, { kind: "line", speaker: RM_NAME, text }]);
+    setSpeaking("rm");
+    postLine("rm", text);
+    await speakDialogue(text, RM_VOICE);
+    setSpeaking(null);
+  };
+
+  const sayAsClient = async (text: string, audioUrl?: string) => {
+    setEntries(prev => [...prev, { kind: "line", speaker: bridge?.client_name?.split(" ")[0] ?? "Client", text }]);
+    setSpeaking("client");
+    postLine("client", text);
+    if (audioUrl && !stopRef.current) await playUrl(audioUrl);
+    else if (!stopRef.current) await speakDialogue(text, CLIENT_FALLBACK_VOICE);
+    setSpeaking(null);
+  };
+
+  // ── Bridge: live RM voice via Web Speech API; client voiced by OpenAI ─
+  const listenOnce = (): Promise<string> => new Promise(resolve => {
+    if (!hasBrowserSTT) { resolve(""); return; }
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const r = new SR();
+    sttRef.current = r;
+    r.continuous = false; r.interimResults = true; r.lang = "en-IN";
+    let last = "";
+    r.onresult = (e: any) => {
+      const res = e.results[e.results.length - 1];
+      last = res[0].transcript;
+      setRmInterim(last);
+      if (res.isFinal) { setRmInterim(""); resolve(last); }
+    };
+    r.onerror = () => { setRmInterim(""); resolve(last); };
+    r.onend = () => { setRmInterim(""); resolve(last); };
+    r.start(); setRmListening(true);
+    // Hard cap so a silent RM doesn't stall the demo.
+    setTimeout(() => { try { r.stop(); } catch {} }, 9000);
+  });
+
+  const stopListening = () => {
+    try { sttRef.current?.stop(); } catch {}
+    setRmListening(false);
+  };
+
+  const startBridge = async (b: BridgeOpenEvent) => {
+    // Open the OpenAI role-play session for the client.
+    const r = await fetch(`/api/v1/client-agent/${b.bridge_id}/start`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ client_id: b.client_id, client_name: b.client_name,
+                             brief: b.client_brief, connection_id: b.connection_id }),
+    });
+    const j = await r.json();
+    const opener = j?.opener;
+    if (opener?.text) {
+      await sayAsClient(opener.text,
+        opener.audio_ready
+          ? `/api/v1/client-agent/${b.bridge_id}/audio/${opener.turn_id}.mp3`
+          : undefined);
+      await drain();
+    }
+
+    // Loop until we've had ~5 RM turns or the user hangs up.
+    for (let i = 0; i < 5; i++) {
+      if (stopRef.current) break;
+      const heard = (await listenOnce()).trim();
+      setRmListening(false);
+      if (stopRef.current) break;
+      const said = heard || "I understand — let me see what I can do for you.";
+      setEntries(prev => [...prev, { kind: "line", speaker: RM_NAME, text: said }]);
+      postLine("rm", said);
+
+      // Get the client reply.
+      const turn = await fetch(`/api/v1/client-agent/${b.bridge_id}/turn`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rm_text: said }),
+      }).then(r => r.ok ? r.json() : null).catch(() => null);
+      if (!turn?.text) break;
+      await sayAsClient(turn.text,
+        turn.audio_ready
+          ? `/api/v1/client-agent/${b.bridge_id}/audio/${turn.turn_id}.mp3`
+          : undefined);
+      await drain();
+    }
+
+    // Cleanup the role-play session.
+    fetch(`/api/v1/client-agent/${b.bridge_id}/end`, { method: "POST" }).catch(() => {});
+  };
+
+  // ── The arc ────────────────────────────────────────────────────────────
+  const runArc = async () => {
+    stopRef.current = false;
+    setEntries([]); setActionStatus({}); setBridge(null);
+    nudgeQueue.current = []; actionQueue.current = [];
+
+    setPhase("ringing");
+    const startResp = await fetch("/api/v1/coached-calls/simulate/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rm_name: RM_NAME, scenario: "standup" }),
+    });
+    if (!startResp.ok) { setPhase("idle"); return; }
+    const startJson = await startResp.json();
+    callIdRef.current = startJson.call_id;
+
+    await ringTone();
+    if (stopRef.current) return;
+    setPhase("concierge");
+
+    // 1. Concierge: greeting + asks the day
+    await sayAsSync(`Good morning ${RM_NAME}! You've got two meetings on the books and a few flags overnight. Want the rundown?`);
+    await sayAsRM("Yes — go ahead, what's on my plate today?");
+    await sayAsSync("Two client meetings, three follow-ups due, and one save-call I've been holding for your approval.");
+
+    // 2. RM asks for top priority. The agent calls /top_priority server-side.
+    await sayAsRM("Skip the rundown — what's my top priority right now?");
+    let top: { client_name: string; client_id: string; spoken: string; play_id?: string } | null = null;
+    try {
+      const t = await fetch("/api/v1/ringg-tools/top_priority", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ call_id: callIdRef.current }),
+      });
+      if (t.ok) {
+        const j = await t.json();
+        top = { client_name: j.client_name, client_id: j.client_id, spoken: j.spoken, play_id: j.play_id };
+      }
+    } catch { /* keep arc moving */ }
+    const topName = top?.client_name ?? "Vikram Desai";
+    const topSpoken = top?.spoken ?? `Your top priority is ${topName} — CRITICAL urgency. Missed two EMIs, credit card maxed. The play is a restructure that saves him about three lakh.`;
+    await sayAsSync(topSpoken);
+
+    // 3. The proactive offer + RM accepts.
+    await sayAsSync(`Want me to call ${topName.split(" ")[0]} for you? I'll bring him on the line and stay to listen.`);
+    await sayAsRM("Yes — connect me with him.");
+
+    // 4. SYNC kicks off the bridge — server broadcasts bridge_open via WS.
+    setPhase("bridging");
+    let bridgeData: BridgeOpenEvent | null = null;
+    try {
+      const r = await fetch("/api/v1/ringg-tools/start_call_with", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          call_id: callIdRef.current, client_hint: topName, play_id: top?.play_id,
+        }),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        await sayAsSync(j.spoken);
+        bridgeData = {
+          bridge_id: j.bridge_id, client_id: j.client_id, client_name: j.client_name,
+          client_brief: "", connection_id: "conn_pipedrive_demo",
+        };
+        // The WS broadcast usually arrives first with the brief — wait briefly.
+        for (let i = 0; i < 30 && !bridge; i++) await sleep(50);
+      }
+    } catch { /* run with what we have */ }
+    setEntries(prev => [...prev, { kind: "event", text: `Dialing ${topName.split(" ")[0]}…` }]);
+    await ringTone(); await ringTone();
+    if (stopRef.current) return;
+
+    // 5. The bridge — live whisper coaching while you and the client converse.
+    setPhase("bridge");
+    await startBridge(bridge ?? bridgeData!);
+
+    if (stopRef.current) return;
+    setPhase("wrapup");
+    await sleep(700);
+    await sayAsSync("Call wrapped. I've logged a recap and updated the radar. Have a great rest of your day.");
+    await fetch(`/api/v1/coached-calls/simulate/${callIdRef.current}/end`, { method: "POST" }).catch(() => {});
+    setPhase("ended");
+  };
+
+  const hangUp = async () => {
+    stopRef.current = true;
+    stopListening();
+    if (whisperSupported()) window.speechSynthesis.cancel();
+    audioRef.current?.pause(); audioRef.current = null;
+    if (callIdRef.current) {
+      fetch(`/api/v1/coached-calls/simulate/${callIdRef.current}/end`, { method: "POST" }).catch(() => {});
+    }
+    setPhase("ended");
+  };
+
+  const live = phase !== "idle" && phase !== "ended";
+
+  return (
+    <div className="min-h-screen bg-paper-grain text-ink antialiased">
+      <div className="border-b border-ink/15 bg-paper">
+        <div className="mx-auto flex h-8 max-w-[1100px] items-center justify-between px-4 font-edit-mono text-[10px] uppercase tracking-widest text-ink/60 md:px-6">
+          <button onClick={() => navigate("/dashboard")} className="inline-flex items-center gap-1.5 hover:text-ink">
+            <ArrowLeft className="h-3 w-3" /> Back to the Briefing Desk
+          </button>
+          <span>§ The Demo</span>
+        </div>
+      </div>
+
+      <main className="mx-auto max-w-[1100px] px-4 py-10 md:px-6 md:py-12">
+        <header className="border-b border-ink/15 pb-6">
+          <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
+            § Submission · Voice AI Buildathon
+          </p>
+          <h1 className="mt-2 font-display text-5xl leading-[0.95] text-ink md:text-6xl">
+            One call. <em className="italic">Every</em> feature.
+          </h1>
+          <p className="mt-3 max-w-2xl font-serif text-lg italic leading-snug text-ink/70">
+            The RM calls SYNC for the morning rundown, asks for today's top priority,
+            and asks SYNC to dial the at-risk client. The client picks up. The RM
+            speaks live. SYNC listens, whispers coaching, and turns the agreed
+            meeting into a real Pipedrive calendar event — without anyone touching a screen.
+          </p>
+          {!live && (
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                onClick={runArc}
+                className="inline-flex items-center gap-2 border-2 border-ink bg-ink px-6 py-3 font-edit-mono text-[11px] uppercase tracking-widest text-cream hover:bg-paper hover:text-ink"
+              >
+                <Play className="h-3.5 w-3.5" /> Run the demo
+              </button>
+              <a
+                href="#widget"
+                onClick={(e) => { e.preventDefault(); window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }); }}
+                className="inline-flex items-center gap-2 border-2 border-ink/40 bg-paper px-6 py-3 font-edit-mono text-[11px] uppercase tracking-widest text-ink/80 hover:border-ink hover:bg-ink hover:text-cream"
+              >
+                <Phone className="h-3.5 w-3.5" /> Call SYNC for real (web widget below)
+              </a>
+            </div>
+          )}
+          {live && (
+            <div className="mt-6">
+              <button
+                onClick={hangUp}
+                className="inline-flex items-center gap-2 border-2 border-red-800 bg-red-800 px-6 py-3 font-edit-mono text-[11px] uppercase tracking-widest text-paper hover:bg-paper hover:text-red-800"
+              >
+                <PhoneOff className="h-3.5 w-3.5" /> End the demo
+              </button>
+            </div>
+          )}
+        </header>
+
+        {/* Phase strip */}
+        <div className="mt-5 grid grid-cols-4 gap-2">
+          {(["concierge", "bridging", "bridge", "wrapup"] as Phase[]).map((step, i) => {
+            const order = ["concierge", "bridging", "bridge", "wrapup"];
+            const idx = order.indexOf(phase as string);
+            const active = idx === i;
+            const done = idx > i;
+            return (
+              <div key={step}
+                className={`border-l-4 bg-paper px-3 py-2 font-edit-mono text-[10px] uppercase tracking-widest ${
+                  active ? "border-emerald-700 text-ink" :
+                  done ? "border-ink/70 text-ink/60" : "border-ink/15 text-ink/35"
+                }`}>
+                <div>{`0${i + 1}`}</div>
+                <div className="mt-0.5 font-bold">
+                  {step === "concierge" ? "Briefing" :
+                   step === "bridging" ? "Bridging" :
+                   step === "bridge" ? "On the call" : "Wrap-up"}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Transcript */}
+        <div ref={scrollRef} className="mt-6 h-[26rem] overflow-y-auto border border-ink/15 bg-ink/[0.015] p-4">
+          {phase === "idle" && (
+            <p className="flex h-full items-center justify-center text-center font-serif text-base italic text-ink/40">
+              Press “Run the demo” — the whole arc plays in about ninety seconds, with live whispers and a real Pipedrive write at the end.
+            </p>
+          )}
+          <div className="space-y-2">
+            {entries.map((e, i) =>
+              e.kind === "line" ? (
+                <p key={i} className="font-serif text-[14px] leading-snug text-ink/90">
+                  <span className={`font-edit-mono text-[10px] font-bold uppercase tracking-widest ${
+                    e.speaker === "SYNC" ? "text-emerald-800" :
+                    e.speaker === RM_NAME ? "text-ink/70" : "text-amber-800"
+                  }`}>{e.speaker}</span>
+                  {"  "}{e.text}
+                </p>
+              ) : e.kind === "event" ? (
+                <div key={i} className="border-2 border-dashed border-ink/30 bg-amber-50/60 px-3 py-2 text-center font-edit-mono text-[10px] uppercase tracking-widest text-amber-900">
+                  📞 {e.text}
+                </div>
+              ) : e.kind === "nudge" ? (
+                <NudgeRow key={i} text={e.text} tone={e.tone ?? "suggest"} />
+              ) : (
+                <ActionRow key={e.id ?? i}
+                  preview={e.text} status={actionStatus[e.id ?? ""] ?? "pending"}
+                  onApprove={() => approveAction(e.id!, e.tool!, e.args ?? {})}
+                  onSkip={() => setActionStatus(s => ({ ...s, [e.id!]: "skipped" }))} />
+              )
+            )}
+          </div>
+        </div>
+
+        {/* RM mic state — only useful during the bridge */}
+        {phase === "bridge" && (
+          <div className="mt-3 flex items-center gap-2 font-edit-mono text-[10px] uppercase tracking-widest text-ink/60">
+            <span className={`relative flex h-2 w-2`}>
+              <span className={`absolute inline-flex h-full w-full rounded-full ${rmListening ? "animate-ping bg-emerald-700 opacity-60" : ""}`} />
+              <span className={`relative inline-flex h-2 w-2 rounded-full ${rmListening ? "bg-emerald-700" : "bg-ink/30"}`} />
+            </span>
+            <Mic className="h-3.5 w-3.5" />
+            {rmListening
+              ? <span>Listening — speak the RM's reply now.</span>
+              : <span>(SYNC will prompt you when it's your turn.)</span>}
+            {rmInterim && <span className="ml-2 truncate font-serif italic text-ink/60">“{rmInterim}”</span>}
+          </div>
+        )}
+
+        {/* Widget pointer */}
+        <p id="widget" className="mt-12 border-t border-ink/15 pt-6 text-center font-serif text-base italic text-ink/60">
+          Or skip the simulation — open the floating <Phone className="inline h-3.5 w-3.5" /> button on the
+          dashboard and talk to SYNC for real on a Ringg web call.
+        </p>
+      </main>
+    </div>
+  );
+}
+
+function NudgeRow({ text, tone }: { text: string; tone: string }) {
+  const t = TONE_META[tone] ?? TONE_META.suggest;
+  return (
+    <div className={`flex items-start gap-2 border-l-4 border-y border-r px-2.5 py-1.5 ${t.cls}`}>
+      <Headphones className="mt-0.5 h-3 w-3 shrink-0" />
+      <div className="min-w-0">
+        <span className="font-edit-mono text-[9px] font-bold uppercase tracking-widest opacity-70">
+          <t.Icon className="mr-1 inline h-3 w-3" />{t.label} · SYNC whispers
+        </span>
+        <p className="font-serif text-[13px] italic leading-snug">{text}</p>
+      </div>
+    </div>
+  );
+}
+
+function ActionRow({ preview, status, onApprove, onSkip }: {
+  preview: string; status: ActionState; onApprove: () => void; onSkip: () => void;
+}) {
+  return (
+    <div className="flex items-start gap-2 border-2 border-ink bg-paper px-2.5 py-2 shadow-sm">
+      <CalendarPlus className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink/70" />
+      <div className="min-w-0 flex-1">
+        <span className="font-edit-mono text-[9px] font-bold uppercase tracking-widest text-ink/50">
+          SYNC heard a commitment
+        </span>
+        <p className="font-serif text-[13px] leading-snug text-ink">{preview}</p>
+        <div className="mt-1.5 flex items-center gap-2">
+          {status === "pending" && (
+            <>
+              <button onClick={onApprove}
+                className="inline-flex items-center gap-1 border border-emerald-800 bg-emerald-800 px-2.5 py-1 font-edit-mono text-[9px] font-bold uppercase tracking-widest text-paper hover:bg-paper hover:text-emerald-800">
+                <Check className="h-3 w-3" /> Approve · file in CRM
+              </button>
+              <button onClick={onSkip}
+                className="inline-flex items-center gap-1 border border-ink/30 px-2.5 py-1 font-edit-mono text-[9px] uppercase tracking-widest text-ink/60 hover:bg-ink/[0.05]">
+                <X className="h-3 w-3" /> Skip
+              </button>
+            </>
+          )}
+          {status === "executing" && (
+            <span className="inline-flex items-center gap-1 font-edit-mono text-[9px] uppercase tracking-widest text-ink/60">
+              <Loader2 className="h-3 w-3 animate-spin" /> Writing to CRM…
+            </span>
+          )}
+          {status === "done" && (
+            <span className="inline-flex items-center gap-1 font-edit-mono text-[9px] font-bold uppercase tracking-widest text-emerald-800">
+              <Check className="h-3 w-3" /> Filed in Pipedrive
+            </span>
+          )}
+          {status === "skipped" && (
+            <span className="font-edit-mono text-[9px] uppercase tracking-widest text-ink/40">Skipped</span>
+          )}
+          {status === "failed" && (
+            <span className="inline-flex items-center gap-2 font-edit-mono text-[9px] uppercase tracking-widest text-red-800">
+              Failed — <button onClick={onApprove} className="underline">retry</button>
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

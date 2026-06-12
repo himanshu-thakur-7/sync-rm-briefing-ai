@@ -32,7 +32,36 @@ Ringg dashboard → **Assistants** → open the agent (e.g. `SYNC - Concierge`)
 (The endpoint also returns `answer` / `response` / `message` — pick whichever
 the UI offers.)
 
-## Tool 2 — log_action
+## Tool 2 — top_priority
+
+| Field | Value |
+|---|---|
+| Name | `top_priority` |
+| Description | `Find the single highest-urgency client RIGHT NOW from the live CRM (runs Risk Radar). Returns a one-paragraph spoken brief and the client_id.` |
+| Method | `POST` |
+| URL | `https://sync-backend-u9rv.onrender.com/api/v1/ringg-tools/top_priority` |
+| Headers | `Content-Type: application/json` |
+
+**Parameters:** none required.
+**Response key to read back:** `spoken`
+
+## Tool 3 — start_call_with
+
+| Field | Value |
+|---|---|
+| Name | `start_call_with` |
+| Description | `Dial the named client and bring them onto the line. The RM keeps talking; the client is brought into the call. ALWAYS call this when the RM agrees to be connected.` |
+| Method | `POST` |
+| URL | `https://sync-backend-u9rv.onrender.com/api/v1/ringg-tools/start_call_with` |
+| Headers | `Content-Type: application/json` |
+
+**Parameters:**
+- `client_hint` · string · required — *Client first name (or "top" for current top priority).*
+- `play_id` · string · optional — *Carry through from a prior top_priority result.*
+
+**Response key to read back:** `spoken`
+
+## Tool 4 — log_action
 
 | Field | Value |
 |---|---|

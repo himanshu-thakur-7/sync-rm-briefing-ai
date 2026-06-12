@@ -8,6 +8,7 @@ import Dashboard from "@/pages/Dashboard";
 import IntegrationsIndex from "@/pages/IntegrationsIndex";
 import RiskRadar from "@/pages/RiskRadar";
 import MorningBrief from "@/pages/MorningBrief";
+import TheDemo from "@/pages/TheDemo";
 import NotFound from "@/pages/not-found";
 import { ConnectionProvider } from "@/lib/connection-context";
 import { PiiProvider } from "@/lib/pii-context";
@@ -21,6 +22,8 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/radar" component={RiskRadar} />
       <Route path="/morning-brief" component={MorningBrief} />
+      <Route path="/the-demo" component={TheDemo} />
+      <Route path="/demo" component={TheDemo} />
       <Route path="/settings/integrations" component={IntegrationsIndex} />
       <Route component={NotFound} />
     </Switch>

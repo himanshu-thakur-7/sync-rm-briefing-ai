@@ -34,7 +34,7 @@ export default function Landing() {
       <Masthead onCta={() => navigate("/dashboard")} />
 
       {/* Hero */}
-      <Hero onCta={() => navigate("/dashboard")} />
+      <Hero onCta={() => navigate("/the-demo")} />
 
       {/* Opening essay */}
       <OpeningEssay />
@@ -98,7 +98,7 @@ export default function Landing() {
       <SpecsSection />
 
       {/* CTA */}
-      <CtaBlock onCta={() => navigate("/dashboard")} />
+      <CtaBlock onCta={() => navigate("/the-demo")} />
 
       {/* Colophon footer */}
       <Colophon />
@@ -505,8 +505,8 @@ function WhisperSection() {
             </div>
           ))}
           <p className="pt-2 text-center font-serif text-sm italic text-ink/50">
-            Watch it live: dashboard → <span className="font-edit-mono not-italic text-[11px]">▶ Simulations</span> —
-            coached call, morning standup, and an autonomous save-call with warm transfer.
+            Watch it live: <a href="/the-demo" className="font-edit-mono not-italic text-[11px] font-bold text-emerald-800 underline underline-offset-2 hover:text-emerald-900">▶ The Demo</a>
+            {" "}— the full RM ↔ SYNC ↔ Client arc, in one ninety-second play.
           </p>
         </div>
       </div>

@@ -156,3 +156,120 @@ async def log_action(request: Request):
 
     spoken = f"Done — {parsed.dry_run_preview or parsed.tool.replace('_', ' ')} for {target.name}. It's in the CRM."
     return _ok(spoken, action_id=str(action_id), tool=parsed.tool, client=target.name)
+
+
+# ─── top_priority ──────────────────────────────────────────────────────────
+# "What's my top priority right now?" — runs the Risk Radar on the live CRM
+# and returns the highest-urgency client with a one-paragraph spoken brief.
+
+_URGENCY_RANK = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
+
+
+@router.api_route("/top_priority", methods=["GET", "POST"])
+async def top_priority(request: Request):
+    p = await _params(request)
+    call_id = str(p.get("call_id") or "ringg_live")
+    connection_id = await _connection_id()
+
+    try:
+        from services.risk_radar import scan
+        plays = await scan(connection_id)
+    except Exception as e:
+        logger.warning("ringg-tools top_priority scan failed: %s", e)
+        plays = []
+    plays = [p for p in plays if p.status in ("queued", "calling")]
+    plays.sort(key=lambda x: -_URGENCY_RANK.get(x.urgency, 0))
+
+    if not plays:
+        return _ok("Good news — no critical accounts flagged right now. Want me to pull a specific client?")
+
+    top = plays[0]
+    bits = [f"Your top priority is {top.client_name} — {top.urgency.lower()} urgency."]
+    if top.rationale:
+        bits.append(top.rationale + ".")
+    if top.objective:
+        bits.append("The play: " + top.objective)
+    spoken = " ".join(bits)
+
+    try:
+        from routers.webhooks import broadcast_event
+        await broadcast_event({"type": "concierge_question", "data": {
+            "call_id": call_id, "question": "top priority", "answer_preview": spoken[:140],
+            "client_id": top.client_id, "client_name": top.client_name,
+        }})
+    except Exception:
+        pass
+
+    return _ok(spoken, client_id=top.client_id, client_name=top.client_name,
+               urgency=top.urgency, play_id=top.id)
+
+
+# ─── start_call_with ───────────────────────────────────────────────────────
+# "Yes, connect me with him" — opens the bridge UI on the dashboard. We don't
+# actually merge two PSTN legs here (Ringg's API doesn't expose conference);
+# instead, the dashboard listens for a `bridge_open` WS event and renders the
+# Whisper-Coached Bridge: RM speaks live via the open Ringg web-call, the
+# CLIENT is voiced by an OpenAI role-play agent in the browser, and SYNC's
+# coaching engine listens to both transcripts under one shared call_id.
+
+@router.api_route("/start_call_with", methods=["GET", "POST"])
+async def start_call_with(request: Request):
+    p = await _params(request)
+    hint = str(p.get("client_hint") or p.get("client") or p.get("name") or "").strip()
+    play_id = p.get("play_id")
+    call_id = str(p.get("call_id") or "ringg_live")
+    connection_id = await _connection_id()
+
+    target = None
+    try:
+        adapter = await connection_registry.crm_for(connection_id)
+        if hint:
+            matches = await adapter.search_client(hint)
+            target = matches[0] if matches else None
+        if target is None:
+            from services.risk_radar import scan
+            plays = await scan(connection_id)
+            if play_id:
+                tplay = next((x for x in plays if str(x.id) == str(play_id)), None)
+                if tplay:
+                    matches = await adapter.search_client(tplay.client_name)
+                    target = matches[0] if matches else None
+            if target is None and plays:
+                matches = await adapter.search_client(plays[0].client_name)
+                target = matches[0] if matches else None
+    except Exception as e:
+        logger.warning("ringg-tools start_call_with resolve failed: %s", e)
+
+    if target is None:
+        return _ok("I'm not sure which client to connect — say the name and I'll dial right away.")
+
+    # Pull a tight client brief so the OpenAI client-agent role-plays accurately.
+    brief = ""
+    try:
+        full = await adapter.get_client(target.client_id)
+        if full:
+            factors = ", ".join(full.risk.factors[:3]) if full.risk.factors else "no fresh flags"
+            complaints = next((c for c in full.complaints if c.status in ("open", "escalated")), None)
+            comp = f" Open complaint: {complaints.summary[:140]}." if complaints else ""
+            cs = full.cross_sell[0].pitch_angle if full.cross_sell else ""
+            brief = (f"{full.profile.name}, {full.profile.occupation} at {full.profile.company}. "
+                     f"Risk {full.risk.score.replace('_',' ')}: {factors}.{comp} "
+                     f"The bank wants to pitch: {cs[:140]}").strip()
+    except Exception:
+        pass
+
+    bridge_id = f"bridge_{target.client_id}_{call_id[-6:]}"
+
+    try:
+        from routers.webhooks import broadcast_event
+        await broadcast_event({"type": "bridge_open", "data": {
+            "call_id": call_id, "bridge_id": bridge_id,
+            "client_id": target.client_id, "client_name": target.name,
+            "client_brief": brief, "connection_id": connection_id,
+        }})
+    except Exception:
+        pass
+
+    spoken = (f"Connecting you to {target.name.split(' ')[0]} now. "
+              "I'll stay on the line and listen — you'll see my tips on screen as we go.")
+    return _ok(spoken, bridge_id=bridge_id, client_id=target.client_id, client_name=target.name)

@@ -20,6 +20,7 @@ from routers import concierge as concierge_router
 from routers import demo as demo_router
 from routers import coached_calls as coached_calls_router
 from routers import ringg_tools as ringg_tools_router
+from routers import client_agent as client_agent_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -101,6 +102,7 @@ app.include_router(concierge_router.router)
 app.include_router(demo_router.router)
 app.include_router(coached_calls_router.router)
 app.include_router(ringg_tools_router.router)
+app.include_router(client_agent_router.router)
 
 
 @app.get("/api/healthz", tags=["health"])
