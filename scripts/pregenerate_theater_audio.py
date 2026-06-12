@@ -31,10 +31,12 @@ BACKEND = "https://sync-backend-u9rv.onrender.com"
 # ── Must mirror routers/coached_calls.py ──────────────────────────────────
 VOICE_RM = "cjVigY5qzO86Huf0OWal"      # Eric
 VOICE_CLIENT = "iP95p4xoKVk53GoZ742B"  # Chris (default male client)
+VOICE_SYNC = "XrExE9yKIg1WjnnlVkGX"    # Matilda — the SYNC agent voice
 CLIENT_VOICE_OVERRIDES = {
     "priya": "EXAVITQu4vr4xnSDxMaL",   # Sarah
     "sneha": "cgSgspJ2msm6clMCkdW9",   # Jessica
 }
+SCENARIOS = ["coached", "savecall", "standup"]
 MODEL = "eleven_multilingual_v2"
 VOICE_SETTINGS = {"stability": 0.4, "similarity_boost": 0.8, "style": 0.4, "use_speaker_boost": True}
 SETTINGS_TAG = f"s{VOICE_SETTINGS['stability']}-st{VOICE_SETTINGS['style']}"
@@ -69,10 +71,14 @@ def main() -> None:
     seen: set[str] = set()
     generated = skipped = 0
 
-    for client_name in DEMO_CLIENTS:
+    # standup uses live CRM data + the default RM, so one pass; the other
+    # scenarios personalize per client.
+    jobs = [(s, c) for s in SCENARIOS for c in
+            (DEMO_CLIENTS if s != "standup" else DEMO_CLIENTS[:1])]
+    for scenario, client_name in jobs:
         resp = json.loads(post_json(
             f"{BACKEND}/api/v1/coached-calls/simulate/start",
-            {"client_name": client_name, "rm_name": RM_NAME},
+            {"client_name": client_name, "rm_name": RM_NAME, "scenario": scenario},
         ))
         # Close the probe session server-side right away.
         try:
@@ -80,8 +86,15 @@ def main() -> None:
         except Exception:
             pass
         for line in resp["script"]:
+            if line["speaker"] == "event":
+                continue
             text = line["text"]
-            voice = VOICE_RM if line["speaker"] == "rm" else client_voice(client_name)
+            if line["speaker"] == "rm":
+                voice = VOICE_RM
+            elif line["speaker"] == "sync":
+                voice = VOICE_SYNC
+            else:
+                voice = client_voice(client_name)
             cache_key = hashlib.sha1(f"{voice}|{MODEL}|{SETTINGS_TAG}|{text}".encode()).hexdigest()
             if cache_key in seen:
                 continue
