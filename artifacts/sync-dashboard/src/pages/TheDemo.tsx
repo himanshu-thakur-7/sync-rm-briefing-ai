@@ -407,13 +407,14 @@ export default function TheDemo() {
     if (resolver) {
       resolver(said);
     } else if (said && bridgeMode === "twilio") {
-      setEntries(prev => [...prev, { kind: "line", speaker: RM_NAME, text: said }]);
       const key = bridge?.call_key || callIdRef.current;
       if (key) {
         fetch(`/api/v1/coached-calls/simulate/${key}/line`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ speaker: "rm", text: said }),
         }).catch(() => {});
+      } else {
+        setEntries(prev => [...prev, { kind: "line", speaker: RM_NAME, text: said }]);
       }
     }
   };
@@ -511,43 +512,22 @@ export default function TheDemo() {
     setBridgeMode("twilio");
 
     const phone = clientPhone || "+917678456033";
+    const callKey = `test_${Date.now().toString(36)}`;
     setPhase("bridging");
     setEntries(prev => [...prev, {
-      kind: "event", text: `[TEST] Calling start_call_with → Twilio direct dial to ${phone}`,
+      kind: "event", text: `Dialing ${phone} via Twilio — SYNC is listening.`,
     }]);
 
     try {
-      const r = await fetch("/api/v1/ringg-tools/start_call_with", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          call_id: `test_${Date.now()}`,
-          client_hint: "Vikram",
-          live_mode: true,
-          client_phone: phone,
-        }),
-      });
-      const j = await r.json();
-      console.log("[TestTwilio] start_call_with response:", j);
-      setEntries(prev => [...prev, {
-        kind: "event", text: `[TEST] Response: mode=${j.mode}, call_key=${j.call_key || "none"}, spoken="${j.spoken?.slice(0, 60)}"`,
-      }]);
-
-      if (j.mode === "twilio" && j.call_key) {
-        const bd: BridgeOpenEvent = {
-          bridge_id: j.bridge_id, client_id: j.client_id || "",
-          client_name: j.client_name || "Test Client",
-          client_brief: "", connection_id: "conn_pipedrive_demo",
-          mode: "twilio", call_key: j.call_key, client_phone: phone,
-        };
-        setBridge(bd);
-        callIdRef.current = j.call_key;
-        setPhase("bridge");
-      } else {
-        setEntries(prev => [...prev, {
-          kind: "event", text: `[TEST] Not Twilio mode — got mode="${j.mode}". Check TWILIO_* env vars on Render.`,
-        }]);
-        setPhase("ended");
-      }
+      const bd: BridgeOpenEvent = {
+        bridge_id: callKey, client_id: "",
+        client_name: "Client",
+        client_brief: "", connection_id: "conn_test",
+        mode: "twilio", call_key: callKey, client_phone: phone,
+      };
+      setBridge(bd);
+      callIdRef.current = callKey;
+      setPhase("bridge");
     } catch (err: any) {
       console.error("[TestTwilio] failed:", err);
       setEntries(prev => [...prev, {
@@ -837,19 +817,17 @@ export default function TheDemo() {
           >
             Live · real phone call
           </button>
-          {liveClient && (
-            <input
-              value={clientPhone}
-              onChange={(e) => setClientPhone(e.target.value)}
-              disabled={live}
-              placeholder="+91 9XXXX XXXXX"
-              className="ml-auto w-56 border border-ink/30 bg-paper px-3 py-1 font-edit-mono text-[11px] tabular-nums text-ink focus:border-ink focus:outline-none disabled:opacity-50"
-            />
-          )}
+          <input
+            value={clientPhone}
+            onChange={(e) => setClientPhone(e.target.value)}
+            disabled={live}
+            placeholder="+91 9XXXX XXXXX"
+            className="ml-auto w-56 border border-ink/30 bg-paper px-3 py-1 font-edit-mono text-[11px] tabular-nums text-ink focus:border-ink focus:outline-none disabled:opacity-50"
+          />
           <p className="basis-full font-serif text-[11px] italic text-ink/50">
             {liveClient
-              ? "When the agent agrees to connect the client, SYNC will dial that number via Ringg's outreach agent — the client picks up their phone, you talk live, whispers and CRM writes still fire on the dashboard."
-              : "When the agent agrees to connect the client, an in-browser bridge opens — the client is voiced by an OpenAI role-play agent (free + perfectly replayable)."}
+              ? "Live mode dials that number via Twilio. Test Twilio Call also uses it — type any number and hit the amber button to call directly."
+              : "Simulated mode uses an OpenAI voice agent. Switch to Live or use the Test Twilio Call button to dial the number on the right."}
           </p>
         </div>
 
