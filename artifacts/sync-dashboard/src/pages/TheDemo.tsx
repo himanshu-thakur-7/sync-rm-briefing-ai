@@ -66,6 +66,14 @@ export default function TheDemo() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [actionStatus, setActionStatus] = useState<Record<string, ActionState>>({});
+
+  // Live-client toggle: OFF → OpenAI voice role-plays the client in the browser
+  // (free + replayable). ON → SYNC actually dials a real phone via Ringg's
+  // outreach agent; the client speaks on that phone.
+  const [liveClient, setLiveClient] = useState(false);
+  const [clientPhone, setClientPhone] = useState(
+    (import.meta.env.VITE_DEMO_CLIENT_PHONE as string) ?? ""
+  );
   const [speaking, setSpeaking] = useState<"sync" | "rm" | "client" | "whisper" | null>(null);
   const [bridge, setBridge] = useState<BridgeOpenEvent | null>(null);
   const [rmListening, setRmListening] = useState(false);
@@ -352,7 +360,10 @@ export default function TheDemo() {
       const r = await fetch("/api/v1/ringg-tools/start_call_with", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          call_id: callIdRef.current, client_hint: topName, play_id: top?.play_id,
+          call_id: callIdRef.current,
+          client_hint: topName,
+          live_mode: liveClient,
+          client_phone: liveClient ? clientPhone : undefined,
         }),
       });
       if (r.ok) {
@@ -366,7 +377,12 @@ export default function TheDemo() {
         for (let i = 0; i < 30 && !bridge; i++) await sleep(50);
       }
     } catch { /* run with what we have */ }
-    setEntries(prev => [...prev, { kind: "event", text: `Dialing ${topName.split(" ")[0]}…` }]);
+    setEntries(prev => [...prev, {
+      kind: "event",
+      text: liveClient
+        ? `Dialing ${topName.split(" ")[0]} on ${clientPhone || "the configured number"} — your phone will ring shortly.`
+        : `Dialing ${topName.split(" ")[0]}…`,
+    }]);
     await ringTone(); await ringTone();
     if (stopRef.current) return;
 
@@ -448,6 +464,43 @@ export default function TheDemo() {
             </div>
           )}
         </header>
+
+        {/* Live-client toggle */}
+        <div className="mt-5 flex flex-wrap items-center gap-3 border border-ink/15 bg-paper px-4 py-3">
+          <span className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">Client mode</span>
+          <button
+            onClick={() => !live && setLiveClient(false)}
+            disabled={live}
+            className={`border px-3 py-1 font-edit-mono text-[10px] uppercase tracking-widest ${
+              !liveClient ? "border-ink bg-ink text-cream" : "border-ink/30 bg-paper text-ink/60 hover:bg-ink/[0.04]"
+            } disabled:opacity-50`}
+          >
+            Simulated · OpenAI voice
+          </button>
+          <button
+            onClick={() => !live && setLiveClient(true)}
+            disabled={live}
+            className={`border px-3 py-1 font-edit-mono text-[10px] uppercase tracking-widest ${
+              liveClient ? "border-emerald-700 bg-emerald-50 text-emerald-900" : "border-ink/30 bg-paper text-ink/60 hover:bg-ink/[0.04]"
+            } disabled:opacity-50`}
+          >
+            Live · real phone call
+          </button>
+          {liveClient && (
+            <input
+              value={clientPhone}
+              onChange={(e) => setClientPhone(e.target.value)}
+              disabled={live}
+              placeholder="+91 9XXXX XXXXX"
+              className="ml-auto w-56 border border-ink/30 bg-paper px-3 py-1 font-edit-mono text-[11px] tabular-nums text-ink focus:border-ink focus:outline-none disabled:opacity-50"
+            />
+          )}
+          <p className="basis-full font-serif text-[11px] italic text-ink/50">
+            {liveClient
+              ? "When the agent agrees to connect the client, SYNC will dial that number via Ringg's outreach agent — the client picks up their phone, you talk live, whispers and CRM writes still fire on the dashboard."
+              : "When the agent agrees to connect the client, an in-browser bridge opens — the client is voiced by an OpenAI role-play agent (free + perfectly replayable)."}
+          </p>
+        </div>
 
         {/* Phase strip */}
         <div className="mt-5 grid grid-cols-4 gap-2">

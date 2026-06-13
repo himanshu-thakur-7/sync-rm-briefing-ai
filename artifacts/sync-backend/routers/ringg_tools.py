@@ -173,11 +173,11 @@ async def top_priority(request: Request):
 
     try:
         from services.risk_radar import scan
-        plays = await scan(connection_id)
+        # scan() returns list[DetectedPlay] — pure dataclasses, no .id / .status.
+        plays = list(await scan(connection_id))
     except Exception as e:
         logger.warning("ringg-tools top_priority scan failed: %s", e)
         plays = []
-    plays = [p for p in plays if p.status in ("queued", "calling")]
     plays.sort(key=lambda x: -_URGENCY_RANK.get(x.urgency, 0))
 
     if not plays:
@@ -201,7 +201,7 @@ async def top_priority(request: Request):
         pass
 
     return _ok(spoken, client_id=top.client_id, client_name=top.client_name,
-               urgency=top.urgency, play_id=top.id)
+               urgency=top.urgency)
 
 
 # ─── start_call_with ───────────────────────────────────────────────────────
@@ -216,8 +216,13 @@ async def top_priority(request: Request):
 async def start_call_with(request: Request):
     p = await _params(request)
     hint = str(p.get("client_hint") or p.get("client") or p.get("name") or "").strip()
-    play_id = p.get("play_id")
     call_id = str(p.get("call_id") or "ringg_live")
+    # Live mode: when the dashboard toggles this on (or when an explicit
+    # client_phone is passed) we actually DIAL the client's phone via Ringg's
+    # outreach agent. Otherwise we fall back to the in-browser bridge with the
+    # OpenAI client-agent role-playing the client.
+    live_mode = str(p.get("live_mode", "")).lower() in ("1", "true", "yes")
+    forced_phone = str(p.get("client_phone") or "").strip()
     connection_id = await _connection_id()
 
     target = None
@@ -227,14 +232,10 @@ async def start_call_with(request: Request):
             matches = await adapter.search_client(hint)
             target = matches[0] if matches else None
         if target is None:
+            # No client mentioned — fall back to the current top priority.
             from services.risk_radar import scan
-            plays = await scan(connection_id)
-            if play_id:
-                tplay = next((x for x in plays if str(x.id) == str(play_id)), None)
-                if tplay:
-                    matches = await adapter.search_client(tplay.client_name)
-                    target = matches[0] if matches else None
-            if target is None and plays:
+            plays = list(await scan(connection_id))
+            if plays:
                 matches = await adapter.search_client(plays[0].client_name)
                 target = matches[0] if matches else None
     except Exception as e:
@@ -260,16 +261,71 @@ async def start_call_with(request: Request):
 
     bridge_id = f"bridge_{target.client_id}_{call_id[-6:]}"
 
+    # ── Live mode: place a REAL outbound Ringg call to the client phone ──
+    if live_mode or forced_phone:
+        from config import settings as _settings
+        client_phone = (forced_phone or _settings.demo_client_phone or "").strip()
+        if not client_phone:
+            return _ok("Live mode is on but I don't have a phone number to dial — pass client_phone with the request.")
+        if not _settings.ringg_outreach_agent_id or not _settings.ringg_api_key:
+            return _ok("Live mode needs the Ringg outreach agent configured — falling back to the in-browser bridge.")
+
+        try:
+            from services.ringg_service import RinggService
+            ringg = RinggService()
+            custom_args = {
+                "client_name": target.name,
+                "opening_line": (
+                    f"Hi {target.name.split(' ')[0]}, this is SYNC calling on behalf of "
+                    f"{_settings.demo_company_name}. I have your relationship manager on the line — "
+                    "is this a good time to talk for a few minutes?"
+                ),
+                "objective": "Briefly identify the customer and hand off to the relationship manager.",
+                "rm_name": "Himanshu",
+                "company_name": _settings.demo_company_name,
+                "friendly_closer": "Have a great day.",
+                "hinglish_closer": "Have a great day.",
+            }
+            outbound_call_id = await ringg.initiate_outreach_call(
+                outreach_agent_id=_settings.ringg_outreach_agent_id,
+                from_number_id=_settings.ringg_from_number_id,
+                client_phone=client_phone,
+                client_name=target.name,
+                custom_args=custom_args,
+                callback_url=f"{_settings.backend_url.rstrip('/')}/api/v1/webhooks/ringg",
+                transfer_to_number=_settings.demo_rm_phone or "",
+            )
+            from routers.webhooks import broadcast_event
+            await broadcast_event({"type": "bridge_open", "data": {
+                "call_id": call_id, "bridge_id": bridge_id,
+                "client_id": target.client_id, "client_name": target.name,
+                "client_brief": brief, "connection_id": connection_id,
+                "mode": "live", "outbound_call_id": outbound_call_id,
+                "client_phone": client_phone,
+            }})
+            return _ok(
+                f"Dialing {target.name.split(' ')[0]} on {client_phone[-4:].rjust(len(client_phone), '*')} now. "
+                "I'll stay on the line and listen — tips show up on your screen as we talk.",
+                bridge_id=bridge_id, mode="live",
+                client_id=target.client_id, client_name=target.name,
+                outbound_call_id=outbound_call_id,
+            )
+        except Exception as e:
+            logger.warning("ringg-tools live-mode dial failed: %s", e)
+            # Fall through to the simulated bridge so the demo never dies.
+
+    # ── Simulated mode: dashboard opens the OpenAI client-agent bridge ──
     try:
         from routers.webhooks import broadcast_event
         await broadcast_event({"type": "bridge_open", "data": {
             "call_id": call_id, "bridge_id": bridge_id,
             "client_id": target.client_id, "client_name": target.name,
-            "client_brief": brief, "connection_id": connection_id,
+            "client_brief": brief, "connection_id": connection_id, "mode": "simulated",
         }})
     except Exception:
         pass
 
     spoken = (f"Connecting you to {target.name.split(' ')[0]} now. "
               "I'll stay on the line and listen — you'll see my tips on screen as we go.")
-    return _ok(spoken, bridge_id=bridge_id, client_id=target.client_id, client_name=target.name)
+    return _ok(spoken, bridge_id=bridge_id, mode="simulated",
+               client_id=target.client_id, client_name=target.name)
