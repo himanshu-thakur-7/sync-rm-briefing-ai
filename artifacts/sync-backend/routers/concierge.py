@@ -197,23 +197,45 @@ async def _lookup_and_summarise(connection_id: str, query: str) -> str:
     if not full:
         return f"{profile.name} — couldn't pull the full profile, give me a second and try again."
 
-    bits = []
-    bits.append(f"{full.profile.name}'s risk is {full.risk.score.replace('_',' ').upper()}.")
-    if full.risk.factors:
-        bits.append("Main factors: " + ", ".join(full.risk.factors[:2]) + ".")
-    if full.products:
-        p = full.products[0]
-        kind = p.product_type.replace("_", " ")
-        amt_l = int(p.principal / 100000)
-        bits.append(f"He's got a {kind} of {amt_l} lakhs, EMI about {int(p.emi/1000)} thousand per month.")
-    open_c = [c for c in full.complaints if c.status in ("open", "escalated")]
+    # Tight, callable briefing — 2-3 short sentences. The agent reads this on
+    # a phone call; long paragraphs feel robotic and get truncated by TTS.
+    # Headline → ONE most urgent flag → the play angle.
+    first = full.profile.name.split(" ")[0]
+    risk_word = full.risk.score.replace("_", " ").lower()
+    open_c = next((c for c in full.complaints if c.status in ("open", "escalated")), None)
+
+    # 1. Headline — risk + the single most urgent thing.
+    headline_flag = None
     if open_c:
-        bits.append(f"And there's an open complaint about {open_c[0].category} — don't get blindsided.")
-    bits.append(f"Last contact was {full.last_rm_interaction_days_ago} days ago.")
+        headline_flag = f"open {open_c.category.lower()} complaint"
+    elif full.risk.factors:
+        headline_flag = full.risk.factors[0].lower()
+    elif full.last_rm_interaction_days_ago > 30:
+        headline_flag = f"no contact in {full.last_rm_interaction_days_ago} days"
+
+    if headline_flag:
+        headline = f"{first}'s risk is {risk_word} — {headline_flag}."
+    else:
+        headline = f"{first} is {risk_word} risk — nothing flagged."
+
+    # 2. The play — the cross-sell angle, ONE sentence, no truncation.
+    play = ""
     if full.cross_sell:
         cs = full.cross_sell[0]
-        bits.append(f"The play: {cs.pitch_angle[:140]}")
-    return " ".join(bits)
+        # Use the pitch_angle if it's a complete sentence, else fall back to product.
+        angle = (cs.pitch_angle or "").strip()
+        if angle and len(angle) <= 140:
+            play = f"The play: {angle}"
+        elif cs.product:
+            play = f"The play: pitch a {cs.product.lower()}."
+
+    # 3. Closer that invites the next move.
+    closer = "Want me to pull anything else, or shall I get them on the line?"
+
+    out = " ".join(b for b in (headline, play, closer) if b)
+    # Safety cap: TTS engines truncate ~500 chars. We're at ~150 normally,
+    # but defend against unexpectedly long cross_sell.pitch_angle values.
+    return out if len(out) <= 480 else out[:477].rsplit(" ", 1)[0] + "…"
 
 
 # ────────────────────────── /{call_id}/act ────────────────────────────────

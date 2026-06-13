@@ -216,12 +216,21 @@ async def top_priority(request: Request):
         return _ok("Good news — no critical accounts flagged right now. Want me to pull a specific client?")
 
     top = plays[0]
-    bits = [f"Your top priority is {top.client_name} — {top.urgency.lower()} urgency."]
-    if top.rationale:
-        bits.append(top.rationale + ".")
-    if top.objective:
-        bits.append("The play: " + top.objective)
-    spoken = " ".join(bits)
+    # Tight, callable. 2 sentences max + a closer. Verbose answers on a phone
+    # feel robotic and get truncated by TTS.
+    first = top.client_name.split(" ")[0]
+    headline = f"Your top priority is {top.client_name} — {top.urgency.lower()} urgency."
+    # Skip the full rationale (often 1-2 sentences) — keep it punchy.
+    obj = (top.objective or "").strip()
+    if obj and len(obj) <= 140:
+        play = f" The play: {obj}."
+    else:
+        play = ""
+    closer = f" Want the full brief, or shall I get {first} on the line?"
+    spoken = (headline + play + closer).strip()
+    # Safety cap.
+    if len(spoken) > 480:
+        spoken = spoken[:477].rsplit(" ", 1)[0] + "…"
 
     try:
         from routers.webhooks import broadcast_event
