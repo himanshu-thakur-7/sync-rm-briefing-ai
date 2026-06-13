@@ -130,6 +130,19 @@ export default function TheDemo() {
       // with the auto-bridge above setting callIdRef, the widget path is covered.
       if (!isOurs) return;
 
+      if (msg.type === "transcript_chunk") {
+        const raw = (msg.data?.text ?? "") as string;
+        const colonIdx = raw.indexOf(":");
+        if (colonIdx > 0) {
+          const speaker = raw.slice(0, colonIdx).trim();
+          const text = raw.slice(colonIdx + 1).trim();
+          if (text) {
+            setEntries(prev => [...prev, { kind: "line", speaker, text }]);
+          }
+        }
+        return;
+      }
+
       if (msg.type === "coaching_nudge") {
         const tone = (["warn", "opportunity", "suggest"].includes(msg.data?.tone)
           ? msg.data.tone : "suggest") as Nudge["tone"];

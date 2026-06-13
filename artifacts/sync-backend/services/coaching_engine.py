@@ -231,22 +231,43 @@ def _extract_when(low: str, day: str) -> str:
     return f"{day.capitalize()} {hour}:{minutes} {meridiem.upper()}"
 
 
-async def detect_action(call_id: str, line: str) -> Optional[ActionSuggestion]:
-    """Inspect one transcript line for an actionable commitment.
+_MEETING_PHRASES = (
+    "let's meet", "let us meet", "schedule a meeting", "set up a meeting",
+    "book a meeting", "catch up on", "let's catch up", "let's connect on",
+    "meet on", "meeting on", "call on", "let's do",
+)
 
-    Heuristic-driven (works keyless); each tool fires at most once per call.
-    A GPT pass can replace this later — the contract (tool/args/preview)
-    already matches the voice-command execute schema.
+_TASK_SEND = _re.compile(
+    r"\b(i(?:'|'| wi)ll send|send (?:me|you|him|her|them|over|across) the|"
+    r"i(?:'|'| wi)ll share|share the|i(?:'|'| wi)ll email|email (?:you|the)|"
+    r"i(?:'|'| wi)ll prepare|prepare the|follow up with)\b"
+)
+_TASK_OBJECT = _re.compile(
+    r"\b(details|numbers|proposal|brochure|documents?|report|analysis|"
+    r"presentation|deck|quote|pricing|terms|contract|agreement|information)\b"
+)
+
+
+async def detect_action(call_id: str, line: str) -> Optional[ActionSuggestion]:
+    """Inspect recent transcript lines for an actionable commitment.
+
+    Uses a sliding window of the last few lines so that commitments spanning
+    multiple 3-second STT chunks still get detected (e.g. "Thursday at four"
+    in one chunk and "works for me" in the next).
     """
     fired = _ACTIONS_FIRED.setdefault(call_id, set())
+    state = _CALLS.get(call_id)
+    recent_lines = state.lines[-4:] if state else [line]
+    window = " ".join(recent_lines).lower()
     low = line.lower()
 
-    # Meeting agreed: a weekday + an agreement word on the same line.
     if "schedule_follow_up" not in fired:
-        day = next((d for d in _DAYS if d in low), None)
-        if day and any(a in low for a in _AGREEMENT):
+        day = next((d for d in _DAYS if d in window), None)
+        has_agreement = any(a in window for a in _AGREEMENT)
+        has_meeting_phrase = any(p in window for p in _MEETING_PHRASES)
+        if day and (has_agreement or has_meeting_phrase):
             fired.add("schedule_follow_up")
-            when = _extract_when(low, day)
+            when = _extract_when(window, day)
             return ActionSuggestion(
                 tool="schedule_follow_up",
                 args={"when": when, "kind": "meeting",
@@ -254,17 +275,17 @@ async def detect_action(call_id: str, line: str) -> Optional[ActionSuggestion]:
                 preview=f"Schedule a follow-up meeting — {when}",
             )
 
-    # Deliverable promised: "I'll send the details / proposal / numbers".
     if "create_task" not in fired:
-        if _re.search(r"\b(i(?:'| wi)ll send|send (?:me|you|him|her|them|over) the)\b", low) and \
-           _re.search(r"\b(details|numbers|proposal|brochure|documents?)\b", low):
+        if _TASK_SEND.search(window) and _TASK_OBJECT.search(window):
             fired.add("create_task")
             from datetime import date, timedelta
             due = (date.today() + timedelta(days=1)).isoformat()
+            obj_match = _TASK_OBJECT.search(window)
+            obj = obj_match.group(1) if obj_match else "details"
             return ActionSuggestion(
                 tool="create_task",
-                args={"subject": "Send the discussed details to the client", "due_date": due},
-                preview="Create a task — send the discussed details (due tomorrow)",
+                args={"subject": f"Send the discussed {obj} to the client", "due_date": due},
+                preview=f"Create a task — send the discussed {obj} (due tomorrow)",
             )
 
     return None
