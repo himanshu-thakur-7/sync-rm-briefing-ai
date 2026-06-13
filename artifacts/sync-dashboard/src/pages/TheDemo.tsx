@@ -156,6 +156,45 @@ export default function TheDemo() {
 
   const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+  // Ringg's web widget owns the mic + speakers while its call is active,
+  // blocking Web Speech API in the bridge phase. The Ringg SDK exposes no
+  // documented end-call API, so we try every plausible global hook and then
+  // fall back to ripping the widget's DOM nodes out — the user sees a clean
+  // "Ringg call ended" event and the mic is freed for the bridge.
+  const teardownRinggWidget = async (): Promise<void> => {
+    const w = window as any;
+    // Try known hook names first.
+    for (const fn of ["unloadAgent", "endAgent", "destroyAgent", "removeAgent",
+                      "dvAgentUnload", "dvAgentDestroy"]) {
+      try { if (typeof w[fn] === "function") w[fn](); } catch {}
+    }
+    try { w.dvAgent?.unload?.(); w.dvAgent?.destroy?.(); w.dvAgent?.close?.(); } catch {}
+
+    // DOM fallback: nuke anything the CDN injected.
+    const selectors = [
+      '[class*="dv-agent"]', '[id*="dv-agent"]',
+      '[class*="ringg"]', '[id*="ringg"]',
+      'iframe[src*="ringg.ai"]', 'iframe[src*="desivocal"]',
+      'iframe[src*="agents-cdn"]',
+    ];
+    document.querySelectorAll(selectors.join(",")).forEach(el => {
+      try { (el as HTMLElement).remove(); } catch {}
+    });
+    // Reset the load guard so a subsequent retry can re-inject if needed.
+    delete (window as any).__ringgWidgetLoaded;
+    // Cut any orphaned media streams the widget left holding the mic.
+    if (typeof navigator !== "undefined" && navigator.mediaDevices) {
+      try {
+        // Force a quick getUserMedia release — some browsers free the device on stop().
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+      } catch { /* user already denied; nothing to free */ }
+    }
+    // Cancel any in-flight TTS so the bridge has a clean audio surface.
+    if (whisperSupported()) window.speechSynthesis.cancel();
+    await sleep(180);
+  };
+
   const ringTone = async () => {
     try {
       const ctx = new AudioContext();
@@ -272,31 +311,57 @@ export default function TheDemo() {
     setSpeaking(null);
   };
 
-  // ── Bridge: live RM voice via Web Speech API; client voiced by OpenAI ─
-  const listenOnce = (): Promise<string> => new Promise(resolve => {
-    if (!hasBrowserSTT) { resolve(""); return; }
+  // ── Bridge: live RM voice via Web Speech API ────────────────────────────
+  // Press-and-hold model. The button holder calls beginTalk() on press-down,
+  // we capture interim transcripts the whole time, and endTalk() on release
+  // resolves the promise with what was heard. No silent timeouts, no canned
+  // fallback lines polluting the conversation. If the user hasn't pressed,
+  // bridge waits indefinitely (with the "your turn" indicator on).
+  const heardResolverRef = useRef<((s: string) => void) | null>(null);
+  const heardBufferRef = useRef<string>("");
+
+  const beginTalk = () => {
+    if (!hasBrowserSTT) return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const r = new SR();
     sttRef.current = r;
-    r.continuous = false; r.interimResults = true; r.lang = "en-IN";
-    let last = "";
+    r.continuous = true; r.interimResults = true; r.lang = "en-IN";
+    heardBufferRef.current = "";
     r.onresult = (e: any) => {
-      const res = e.results[e.results.length - 1];
-      last = res[0].transcript;
-      setRmInterim(last);
-      if (res.isFinal) { setRmInterim(""); resolve(last); }
+      let interim = "";
+      let finalText = "";
+      for (let k = e.resultIndex; k < e.results.length; k++) {
+        const res = e.results[k];
+        if (res.isFinal) finalText += res[0].transcript + " ";
+        else interim += res[0].transcript;
+      }
+      if (finalText) heardBufferRef.current += finalText;
+      setRmInterim((heardBufferRef.current + interim).trim());
     };
-    r.onerror = () => { setRmInterim(""); resolve(last); };
-    r.onend = () => { setRmInterim(""); resolve(last); };
-    r.start(); setRmListening(true);
-    // Hard cap so a silent RM doesn't stall the demo.
-    setTimeout(() => { try { r.stop(); } catch {} }, 9000);
-  });
+    r.onerror = () => { /* swallow — user can release + try again */ };
+    try { r.start(); setRmListening(true); } catch { /* already started */ }
+  };
 
-  const stopListening = () => {
+  const endTalk = () => {
     try { sttRef.current?.stop(); } catch {}
     setRmListening(false);
+    const said = (heardBufferRef.current + " " + rmInterim).trim();
+    setRmInterim("");
+    heardBufferRef.current = "";
+    const resolver = heardResolverRef.current;
+    heardResolverRef.current = null;
+    if (resolver) resolver(said);
   };
+
+  // Wait for the user to press-and-release the Talk button. Resolves with
+  // whatever was captured. Times out at 60 s as a last-resort safety net.
+  const awaitRmTurn = (): Promise<string> => new Promise(resolve => {
+    heardResolverRef.current = resolve;
+    setTimeout(() => {
+      const r = heardResolverRef.current;
+      if (r) { heardResolverRef.current = null; r(""); }
+    }, 60_000);
+  });
 
   const startBridge = async (b: BridgeOpenEvent) => {
     // Open the OpenAI role-play session for the client.
@@ -315,13 +380,14 @@ export default function TheDemo() {
       await drain();
     }
 
-    // Loop until we've had ~5 RM turns or the user hangs up.
-    for (let i = 0; i < 5; i++) {
+    // Press-and-hold flow: wait for the user to actually speak before
+    // generating a client reply. No timeout fallback — silence stays silent.
+    for (let i = 0; i < 6; i++) {
       if (stopRef.current) break;
-      const heard = (await listenOnce()).trim();
-      setRmListening(false);
+      const said = (await awaitRmTurn()).trim();
       if (stopRef.current) break;
-      const said = heard || "I understand — let me see what I can do for you.";
+      // Skip empty turns instead of inserting canned text.
+      if (!said) continue;
       setEntries(prev => [...prev, { kind: "line", speaker: RM_NAME, text: said }]);
       postLine("rm", said);
 
@@ -354,13 +420,39 @@ export default function TheDemo() {
     setPhase("bridging");
     setEntries(prev => [...prev, {
       kind: "event",
-      text: `Bringing ${(b.client_name || "the client").split(" ")[0]} on the line — the Ringg agent will stay silent and assist.`,
+      text: `Ending the Ringg call — bringing ${(b.client_name || "the client").split(" ")[0]} on the line.`,
     }]);
+
+    // CRITICAL: the Ringg widget owns the microphone while its call is alive,
+    // which blocks Web Speech API in the bridge. Tear the widget down so the
+    // mic is freed before we ask the RM to speak.
+    await teardownRinggWidget();
+
+    // Start a proper simulate session so the line POSTs in startBridge() route
+    // through the coaching engine and broadcast whispers + action suggestions.
+    try {
+      const r = await fetch("/api/v1/coached-calls/simulate/start", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: b.client_id, client_name: b.client_name,
+          rm_name: RM_NAME, connection_id: b.connection_id, scenario: "coached",
+        }),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        callIdRef.current = j.call_id;          // tagged so WS handler accepts coaching events
+      }
+    } catch { /* keep going — bridge still plays, whispers may not fire */ }
+
     await ringTone(); await ringTone();
     if (stopRef.current) return;
     setPhase("bridge");
     await startBridge(b);
     if (stopRef.current) return;
+    // End the simulate session so post-call analysis runs.
+    if (callIdRef.current) {
+      fetch(`/api/v1/coached-calls/simulate/${callIdRef.current}/end`, { method: "POST" }).catch(() => {});
+    }
     setPhase("wrapup");
     await sleep(700);
     await sayAsSync("Call wrapped. I've logged a recap and updated the radar.");
@@ -458,7 +550,10 @@ export default function TheDemo() {
 
   const hangUp = async () => {
     stopRef.current = true;
-    stopListening();
+    // Release the mic if we were listening + resolve any pending RM-turn await.
+    try { sttRef.current?.stop(); } catch {}
+    setRmListening(false); setRmInterim("");
+    if (heardResolverRef.current) { heardResolverRef.current(""); heardResolverRef.current = null; }
     if (whisperSupported()) window.speechSynthesis.cancel();
     audioRef.current?.pause(); audioRef.current = null;
     if (callIdRef.current) {
@@ -641,18 +736,36 @@ export default function TheDemo() {
           )}
         </div>
 
-        {/* RM mic state — only useful during the bridge */}
+        {/* Press-and-hold Talk button during the bridge */}
         {phase === "bridge" && (
-          <div className="mt-3 flex items-center gap-2 font-edit-mono text-[10px] uppercase tracking-widest text-ink/60">
-            <span className={`relative flex h-2 w-2`}>
-              <span className={`absolute inline-flex h-full w-full rounded-full ${rmListening ? "animate-ping bg-emerald-700 opacity-60" : ""}`} />
-              <span className={`relative inline-flex h-2 w-2 rounded-full ${rmListening ? "bg-emerald-700" : "bg-ink/30"}`} />
-            </span>
-            <Mic className="h-3.5 w-3.5" />
-            {rmListening
-              ? <span>Listening — speak the RM's reply now.</span>
-              : <span>(SYNC will prompt you when it's your turn.)</span>}
-            {rmInterim && <span className="ml-2 truncate font-serif italic text-ink/60">“{rmInterim}”</span>}
+          <div className="mt-4 flex flex-col items-center gap-2 border-t border-ink/15 pt-4">
+            <button
+              onMouseDown={beginTalk}
+              onMouseUp={endTalk}
+              onMouseLeave={() => { if (rmListening) endTalk(); }}
+              onTouchStart={(e) => { e.preventDefault(); beginTalk(); }}
+              onTouchEnd={(e) => { e.preventDefault(); endTalk(); }}
+              disabled={!hasBrowserSTT}
+              className={`inline-flex items-center gap-2 border-2 px-6 py-3 font-edit-mono text-[11px] uppercase tracking-widest transition-colors disabled:opacity-40 ${
+                rmListening
+                  ? "border-emerald-700 bg-emerald-700 text-paper"
+                  : "border-ink bg-ink text-cream hover:bg-paper hover:text-ink"
+              }`}
+              title="Press and hold to talk to the client"
+            >
+              <Mic className={`h-4 w-4 ${rmListening ? "animate-pulse" : ""}`} />
+              {rmListening ? "Listening… release to send" : "Hold to talk"}
+            </button>
+            {rmInterim && (
+              <p className="max-w-xl text-center font-serif text-[13px] italic leading-snug text-ink/70">
+                "{rmInterim}"
+              </p>
+            )}
+            {!hasBrowserSTT && (
+              <p className="text-center font-serif text-[11px] italic text-red-800">
+                This browser doesn't support live mic capture — use Chrome on desktop.
+              </p>
+            )}
           </div>
         )}
 
