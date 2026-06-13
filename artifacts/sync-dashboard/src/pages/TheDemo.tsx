@@ -15,7 +15,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import {
-  ArrowLeft, Headphones, Phone, Play, PhoneOff, Mic,
+  ArrowLeft, Headphones, Phone, Play, PhoneOff, Mic, SendHorizontal,
   AlertTriangle, Sparkles, Lightbulb, CalendarPlus, Check, Loader2, X,
 } from "lucide-react";
 import { useWebSocket, WebSocketMessage } from "@/hooks/use-websocket";
@@ -88,6 +88,7 @@ export default function TheDemo() {
   const [bridgeMode, setBridgeMode] = useState<"simulated" | "twilio">("simulated");
   const [rmListening, setRmListening] = useState(false);
   const [rmInterim, setRmInterim] = useState("");
+  const [rmText, setRmText] = useState("");
 
   const callIdRef = useRef<string>("");
   const nudgeQueue = useRef<Nudge[]>([]);
@@ -416,6 +417,19 @@ export default function TheDemo() {
       } else {
         setEntries(prev => [...prev, { kind: "line", speaker: RM_NAME, text: said }]);
       }
+    }
+  };
+
+  const sendRmText = () => {
+    const text = rmText.trim();
+    if (!text) return;
+    setRmText("");
+    const key = bridge?.call_key || callIdRef.current;
+    if (key) {
+      fetch(`/api/v1/coached-calls/simulate/${key}/line`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ speaker: "rm", text }),
+      }).catch(() => {});
     }
   };
 
@@ -921,7 +935,30 @@ export default function TheDemo() {
             onCallEnded={onTwilioCallEnded}
           />
         )}
-        {phase === "bridge" && (
+        {phase === "bridge" && bridgeMode === "twilio" && (
+          <div className="mt-4 flex flex-col items-center gap-2 border-t border-ink/15 pt-4">
+            <p className="font-serif text-[11px] italic text-ink/50">
+              Your browser mic feeds the call. Speak naturally — SYNC transcribes both sides automatically.
+            </p>
+            <div className="flex w-full max-w-lg items-center gap-2">
+              <input
+                value={rmText}
+                onChange={(e) => setRmText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") sendRmText(); }}
+                placeholder="Type as RM (press Enter to send)…"
+                className="flex-1 border border-ink/30 bg-paper px-3 py-2 font-edit-mono text-[12px] text-ink focus:border-ink focus:outline-none"
+              />
+              <button
+                onClick={sendRmText}
+                disabled={!rmText.trim()}
+                className="inline-flex items-center gap-1.5 border-2 border-ink bg-ink px-4 py-2 font-edit-mono text-[11px] uppercase tracking-widest text-cream hover:bg-paper hover:text-ink disabled:opacity-40"
+              >
+                <SendHorizontal className="h-3.5 w-3.5" /> Send
+              </button>
+            </div>
+          </div>
+        )}
+        {phase === "bridge" && bridgeMode !== "twilio" && (
           <div className="mt-4 flex flex-col items-center gap-2 border-t border-ink/15 pt-4">
             <button
               onMouseDown={beginTalk}
@@ -938,7 +975,7 @@ export default function TheDemo() {
               title="Press and hold to talk as the RM"
             >
               <Mic className={`h-4 w-4 ${rmListening ? "animate-pulse" : ""}`} />
-              {rmListening ? "Listening… release to send" : "Hold to talk (RM)"}
+              {rmListening ? "Listening… release to send" : "Hold to talk"}
             </button>
             {rmInterim && (
               <p className="max-w-xl text-center font-serif text-[13px] italic leading-snug text-ink/70">

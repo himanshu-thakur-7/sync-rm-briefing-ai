@@ -309,9 +309,12 @@ async def media_sink(websocket: WebSocket, call_key: str):
 
     logger.info("Coached call %s: media stream connected", call_key)
     buffers: dict[str, bytearray] = {"inbound": bytearray(), "outbound": bytearray()}
+    rm_first = (sess.get("rm_name") or "RM").split()[0]
     client_first = (sess.get("client_name") or "Client").split()[0]
-    labels = {"inbound": client_first, "outbound": client_first}
-    summary = f"Live coached call between {labels['inbound']} (RM) and {sess.get('client_name')}"
+    labels = {"inbound": rm_first, "outbound": client_first}
+    summary = f"Live coached call between {rm_first} (RM) and {sess.get('client_name')}"
+
+    _TWIML_PHRASES = {"sync is on the line", "whisper coaching", "connecting your client"}
 
     async def flush(track: str) -> None:
         data = bytes(buffers[track])
@@ -330,6 +333,9 @@ async def media_sink(websocket: WebSocket, call_key: str):
             return
         if not text or text.startswith("["):
             return
+        low = text.lower()
+        if any(p in low for p in _TWIML_PHRASES):
+            return  # skip the TwiML <Say> robot voice
         line = f"{labels[track]}: {text}"
         sess["lines"].append(line)
         from routers.webhooks import emit_transcript_chunk
