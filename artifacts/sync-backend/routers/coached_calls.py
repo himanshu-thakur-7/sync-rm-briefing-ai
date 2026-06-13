@@ -295,8 +295,8 @@ async def debug_twilio_dial(body: _DebugDialBody):
 # ─── Twilio Media Streams sink ─────────────────────────────────────────────
 
 # Flush a track's buffer for transcription once it holds ~3 s of audio.
-_FLUSH_BYTES = 8000 * 3           # μ-law = 1 byte/sample @ 8 kHz
-_ENERGY_GATE = 250.0              # mean |sample| below this ≈ silence — skip STT
+_FLUSH_BYTES = 8000 * 5           # μ-law = 1 byte/sample @ 8 kHz → 5 s chunks for cleaner STT
+_ENERGY_GATE = 400.0              # mean |sample| below this ≈ silence — skip STT
 
 
 @router.websocket("/media/{call_key}")
@@ -310,7 +310,7 @@ async def media_sink(websocket: WebSocket, call_key: str):
     logger.info("Coached call %s: media stream connected", call_key)
     buffers: dict[str, bytearray] = {"inbound": bytearray(), "outbound": bytearray()}
     client_first = (sess.get("client_name") or "Client").split()[0]
-    labels = {"inbound": sess.get("rm_name") or "RM", "outbound": client_first}
+    labels = {"inbound": client_first, "outbound": client_first}
     summary = f"Live coached call between {labels['inbound']} (RM) and {sess.get('client_name')}"
 
     async def flush(track: str) -> None:

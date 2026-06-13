@@ -217,18 +217,24 @@ import re as _re
 
 def _extract_when(low: str, day: str) -> str:
     """Build a spoken-style time like 'Thursday 4:00 PM' from the line."""
-    m = _re.search(r"\bat\s+(\d{1,2}(?::\d{2})?|" + "|".join(_WORD_NUM) + r")\s*(am|pm)?\b", low)
-    if not m:
-        return day.capitalize()
-    raw, meridiem = m.group(1), m.group(2)
-    hour = _WORD_NUM.get(raw, None)
-    if hour is None:
-        hour = int(raw.split(":")[0])
-    minutes = raw.split(":")[1] if ":" in raw else "00"
-    if not meridiem:
-        # Business-hours default: 1–7 reads as PM, 8–12 as AM.
-        meridiem = "pm" if 1 <= hour <= 7 else "am"
-    return f"{day.capitalize()} {hour}:{minutes} {meridiem.upper()}"
+    word_nums = "|".join(_WORD_NUM)
+    patterns = [
+        _re.compile(r"(?:at\s+)?(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)\b", _re.I),
+        _re.compile(r"\bat\s+(\d{1,2}(?::\d{2})?|" + word_nums + r")\s*(a\.?m\.?|p\.?m\.?)?\b", _re.I),
+        _re.compile(r"(" + word_nums + r")\s*(a\.?m\.?|p\.?m\.?)\b", _re.I),
+    ]
+    for pat in patterns:
+        m = pat.search(low)
+        if m:
+            raw, meridiem = m.group(1), (m.group(2) or "").replace(".", "").lower()
+            hour = _WORD_NUM.get(raw, None)
+            if hour is None:
+                hour = int(raw.split(":")[0])
+            minutes = raw.split(":")[1] if ":" in raw else "00"
+            if not meridiem:
+                meridiem = "pm" if 1 <= hour <= 7 else "am"
+            return f"{day.capitalize()} {hour}:{minutes} {meridiem.upper()}"
+    return day.capitalize()
 
 
 _MEETING_PHRASES = (

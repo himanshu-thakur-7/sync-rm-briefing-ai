@@ -404,7 +404,18 @@ export default function TheDemo() {
     heardBufferRef.current = "";
     const resolver = heardResolverRef.current;
     heardResolverRef.current = null;
-    if (resolver) resolver(said);
+    if (resolver) {
+      resolver(said);
+    } else if (said && bridgeMode === "twilio") {
+      setEntries(prev => [...prev, { kind: "line", speaker: RM_NAME, text: said }]);
+      const key = bridge?.call_key || callIdRef.current;
+      if (key) {
+        fetch(`/api/v1/coached-calls/simulate/${key}/line`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ speaker: "rm", text: said }),
+        }).catch(() => {});
+      }
+    }
   };
 
   // Wait for the user to press-and-release the Talk button. Resolves with
@@ -932,7 +943,7 @@ export default function TheDemo() {
             onCallEnded={onTwilioCallEnded}
           />
         )}
-        {phase === "bridge" && bridgeMode !== "twilio" && (
+        {phase === "bridge" && (
           <div className="mt-4 flex flex-col items-center gap-2 border-t border-ink/15 pt-4">
             <button
               onMouseDown={beginTalk}
@@ -946,10 +957,10 @@ export default function TheDemo() {
                   ? "border-emerald-700 bg-emerald-700 text-paper"
                   : "border-ink bg-ink text-cream hover:bg-paper hover:text-ink"
               }`}
-              title="Press and hold to talk to the client"
+              title="Press and hold to talk as the RM"
             >
               <Mic className={`h-4 w-4 ${rmListening ? "animate-pulse" : ""}`} />
-              {rmListening ? "Listening… release to send" : "Hold to talk"}
+              {rmListening ? "Listening… release to send" : "Hold to talk (RM)"}
             </button>
             {rmInterim && (
               <p className="max-w-xl text-center font-serif text-[13px] italic leading-snug text-ink/70">

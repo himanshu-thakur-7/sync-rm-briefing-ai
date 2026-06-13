@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Device, Call } from "@twilio/voice-sdk";
-import { PhoneOff, Loader2 } from "lucide-react";
+import { PhoneOff, Loader2, VolumeX, Volume2 } from "lucide-react";
 
 interface Props {
   callKey: string;
@@ -15,6 +15,7 @@ export function TwilioCallControls({ callKey, clientPhone, clientName, onCallEnd
   const [status, setStatus] = useState<Status>("init");
   const [errorDetail, setErrorDetail] = useState("");
   const [elapsed, setElapsed] = useState(0);
+  const [muted, setMuted] = useState(false);
   const deviceRef = useRef<Device | null>(null);
   const callRef = useRef<Call | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -120,6 +121,18 @@ export function TwilioCallControls({ callKey, clientPhone, clientName, onCallEnd
     onCallEnded?.();
   };
 
+  const toggleMute = () => {
+    const call = callRef.current;
+    if (!call) return;
+    if (muted) {
+      call.mute(false);
+      setMuted(false);
+    } else {
+      call.mute(true);
+      setMuted(true);
+    }
+  };
+
   const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
   const firstName = clientName.split(" ")[0];
 
@@ -144,12 +157,26 @@ export function TwilioCallControls({ callKey, clientPhone, clientName, onCallEnd
       )}
 
       {(status === "connected" || status === "connecting" || status === "ringing") && (
-        <button
-          onClick={hangUp}
-          className="inline-flex items-center gap-2 border-2 border-red-800 bg-red-800 px-6 py-3 font-edit-mono text-[11px] uppercase tracking-widest text-paper hover:bg-paper hover:text-red-800"
-        >
-          <PhoneOff className="h-3.5 w-3.5" /> Hang up
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={toggleMute}
+            className={`inline-flex items-center gap-2 border-2 px-4 py-3 font-edit-mono text-[11px] uppercase tracking-widest transition-colors ${
+              muted
+                ? "border-amber-700 bg-amber-700 text-paper hover:bg-paper hover:text-amber-700"
+                : "border-ink/40 bg-paper text-ink/70 hover:border-ink hover:text-ink"
+            }`}
+            title={muted ? "Unmute your mic on the call" : "Mute your mic on the call"}
+          >
+            {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+            {muted ? "Muted" : "Mute"}
+          </button>
+          <button
+            onClick={hangUp}
+            className="inline-flex items-center gap-2 border-2 border-red-800 bg-red-800 px-6 py-3 font-edit-mono text-[11px] uppercase tracking-widest text-paper hover:bg-paper hover:text-red-800"
+          >
+            <PhoneOff className="h-3.5 w-3.5" /> Hang up
+          </button>
+        </div>
       )}
 
       {status === "disconnected" && (
