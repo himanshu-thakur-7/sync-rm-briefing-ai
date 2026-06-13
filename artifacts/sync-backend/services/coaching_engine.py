@@ -27,10 +27,17 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Nudge:
     text: str
-    tone: str  # suggest | warn | opportunity
+    tone: str           # suggest | warn | opportunity
+    say: str = ""       # OPTIONAL: an exact line the RM can say to the client.
+                        # If non-empty, the UI renders this as a "Suggested
+                        # response" card in the right sidebar — one click to
+                        # copy or speak it. Empty for purely tactical nudges.
 
     def as_dict(self) -> dict:
-        return {"text": self.text, "tone": self.tone}
+        d = {"text": self.text, "tone": self.tone}
+        if self.say:
+            d["say"] = self.say
+        return d
 
 
 # Per-call rolling state so we don't re-nudge on every chunk.
@@ -50,19 +57,26 @@ COACH_SYSTEM_PROMPT = """You are a live sales-coaching co-pilot whispering to a
 Relationship Manager while they are ON a call with a client. You see the
 running transcript. Your job: decide if RIGHT NOW there is one high-value thing
 the RM should do, and say it in <= 12 words, like a teammate murmuring in their
-ear.
+ear. You may ALSO produce a one-line suggested reply the RM can say verbatim.
 
-Return STRICT JSON: {"nudge": "<text or empty>", "tone": "suggest|warn|opportunity"}
+Return STRICT JSON: {
+  "nudge": "<tactical advice, <=12 words, or empty>",
+  "tone":  "suggest|warn|opportunity",
+  "say":   "<a 1-2 sentence line the RM can say to the client verbatim, in plain spoken English, or empty>"
+}
 
 Rules:
-- Only nudge when it genuinely helps. If nothing is worth saying, return
-  {"nudge": "", "tone": "suggest"}.
+- Only nudge when it genuinely helps. Else return everything empty.
 - Never repeat advice already obvious from earlier in the transcript.
 - "warn" for hesitation, objections, competitor mentions, complaints, churn signals.
 - "opportunity" for life events, upsell openings, positive buying signals.
 - "suggest" for a tactical next move (a question to ask, an offer to make).
+- "say" should be a NATURAL spoken line, in first person, addressing the client.
+  Use contractions. Don't be cheesy. Don't restate the obvious. Match the
+  client's energy. Leave "say" empty if no specific reply is warranted (e.g.
+  the nudge is purely about flagging an internal risk).
 - Be specific to THIS client and THIS moment. No generic platitudes.
-- <= 12 words. Imperative voice. No quotes around the nudge."""
+- <= 12 words for nudge. Imperative voice. No quotes around any field."""
 
 
 async def observe(call_id: str, line: str, client_summary: str = "") -> Optional[Nudge]:
@@ -128,35 +142,49 @@ async def _coach(transcript: str, client_summary: str) -> Optional[Nudge]:
         data = json.loads(resp.choices[0].message.content or "{}")
         text = (data.get("nudge") or "").strip()
         tone = (data.get("tone") or "suggest").strip()
+        say = (data.get("say") or "").strip()
         if tone not in ("suggest", "warn", "opportunity"):
             tone = "suggest"
-        if not text:
+        if not text and not say:
             return None
-        return Nudge(text=text, tone=tone)
+        # Allow say-only nudges (no internal advice, just a line to read).
+        if not text:
+            text = say  # something for the UI to fall back on
+        return Nudge(text=text, tone=tone, say=say)
     except Exception as e:
         logger.warning("Coaching model error, falling back to heuristic: %s", e)
         return _heuristic(transcript)
 
 
-# Keyword → nudge table for the keyless demo path. Checked against the most
-# recent client line only (lowercased).
-_HEURISTICS: list[tuple[tuple[str, ...], str, str]] = [
+# Keyword → (advice, tone, suggested-line-to-say) table for the keyless demo
+# path. Checked against the most recent client line only (lowercased).
+# The 4th element is what the UI shows as "Suggested response" — a concrete,
+# in-character line the RM can deliver verbatim, in their own voice.
+_HEURISTICS: list[tuple[tuple[str, ...], str, str, str]] = [
     (("worried", "worry", "anxious", "nervous", "not sure", "hesitant", "concerned"),
-     "Acknowledge the worry, then pivot to the relief angle.", "warn"),
+     "Acknowledge the worry, then pivot to the relief angle.", "warn",
+     "I completely understand — and that's exactly why I called. There's a way to bring that pressure down significantly."),
     (("expensive", "costly", "too much", "afford", "cost"),
-     "Reframe on value and EMI relief, not headline price.", "warn"),
+     "Reframe on value and EMI relief, not headline price.", "warn",
+     "Let's not look at headline cost — let's look at what hits your account each month. I think you'll be surprised."),
     (("competitor", "another bank", "hdfc", "icici", "axis", "better rate", "switching"),
-     "Competitor signal — flag for retention, counter on service.", "warn"),
+     "Competitor signal — flag for retention, counter on service.", "warn",
+     "Rates matter, but so does having someone who already knows your business when things get tight. Let me show you what we can do."),
     (("complaint", "issue", "problem", "unhappy", "frustrat", "disappoint"),
-     "Defuse first: confirm you'll resolve it on this call.", "warn"),
+     "Defuse first: confirm you'll resolve it on this call.", "warn",
+     "I'm sorry that happened. Stay on with me — I'll get this fixed before we hang up."),
     (("later", "busy", "no time", "call back", "some other"),
-     "Offer a fixed 10-min slot, not an open-ended callback.", "suggest"),
+     "Offer a fixed 10-min slot, not an open-ended callback.", "suggest",
+     "I'll keep this short — give me ten minutes Thursday at 4 PM and I'll have the proposal ready for you."),
     (("interested", "tell me more", "sounds good", "go ahead", "yes please"),
-     "Buying signal — move to the specific offer now.", "opportunity"),
+     "Buying signal — move to the specific offer now.", "opportunity",
+     "Great — here's exactly what it looks like. Same payment date, and you save about three lakh in interest this year."),
     (("new job", "promotion", "bonus", "esop", "married", "house", "child", "school"),
-     "Life event — open the matched cross-sell.", "opportunity"),
+     "Life event — open the matched cross-sell.", "opportunity",
+     "That's a big milestone — congratulations. We have something that fits this moment exactly. Can I walk you through it?"),
     (("maybe", "think about", "let me see", "not now"),
-     "Soft no — surface one concrete benefit to re-engage.", "suggest"),
+     "Soft no — surface one concrete benefit to re-engage.", "suggest",
+     "Totally fair — quick question before you decide: would saving three lakh in interest this year change the answer?"),
 ]
 
 
@@ -255,7 +283,7 @@ def _heuristic(transcript: str) -> Optional[Nudge]:
         break
     if not last_client:
         return None
-    for keys, text, tone in _HEURISTICS:
+    for keys, text, tone, say in _HEURISTICS:
         if any(k in last_client for k in keys):
-            return Nudge(text=text, tone=tone)
+            return Nudge(text=text, tone=tone, say=say)
     return None

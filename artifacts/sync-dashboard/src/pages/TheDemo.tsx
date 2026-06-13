@@ -22,6 +22,7 @@ import { useWebSocket, WebSocketMessage } from "@/hooks/use-websocket";
 import { playChime, setTheaterActive, speakDialogue, whisperSupported } from "@/lib/whisper";
 import { WebCallWidget } from "@/components/WebCallWidget";
 import { CoachingOverlay } from "@/components/CoachingOverlay";
+import { CopilotSidebar } from "@/components/CopilotSidebar";
 
 type Phase =
   | "idle"
@@ -67,6 +68,11 @@ export default function TheDemo() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [actionStatus, setActionStatus] = useState<Record<string, ActionState>>({});
+  // Persistent sidebar state — nudges and actions accumulate so the RM can
+  // glance at them anytime, not just at the moment they fire.
+  const [sidebarNudges, setSidebarNudges] = useState<{ id: number; text: string; tone: "warn"|"opportunity"|"suggest"; say?: string }[]>([]);
+  const [sidebarActions, setSidebarActions] = useState<{ id: string; tool: string; args: Record<string, unknown>; preview: string }[]>([]);
+  const nudgeSeq = useRef(0);
 
   // Live-client toggle: OFF → OpenAI voice role-plays the client in the browser
   // (free + replayable). ON → SYNC actually dials a real phone via Ringg's
@@ -118,14 +124,22 @@ export default function TheDemo() {
       if (msg.type === "coaching_nudge") {
         const tone = (["warn", "opportunity", "suggest"].includes(msg.data?.tone)
           ? msg.data.tone : "suggest") as Nudge["tone"];
-        nudgeQueue.current.push({ text: msg.data?.text ?? "", tone });
+        const text = msg.data?.text ?? "";
+        const say = (msg.data?.say ?? "").toString().trim();
+        nudgeQueue.current.push({ text, tone });
+        // Also persist into the sidebar so the RM can glance at it later.
+        const sid = ++nudgeSeq.current;
+        setSidebarNudges(prev => [{ id: sid, text, tone, say: say || undefined }, ...prev].slice(0, 12));
       } else if (msg.type === "coaching_action_suggestion") {
-        actionQueue.current.push({
-          id: msg.data?.suggestion_id ?? Math.random().toString(36).slice(2, 10),
+        const id = msg.data?.suggestion_id ?? Math.random().toString(36).slice(2, 10);
+        const action = {
+          id,
           tool: msg.data?.tool ?? "",
           args: msg.data?.args ?? {},
           preview: msg.data?.preview ?? "",
-        });
+        };
+        actionQueue.current.push(action);
+        setSidebarActions(prev => [action, ...prev].slice(0, 8));
       }
     },
   });
@@ -335,6 +349,7 @@ export default function TheDemo() {
   const runWidgetBridge = async (b: BridgeOpenEvent) => {
     stopRef.current = false;
     setEntries([]); setActionStatus({});
+    setSidebarNudges([]); setSidebarActions([]);
     nudgeQueue.current = []; actionQueue.current = [];
     setPhase("bridging");
     setEntries(prev => [...prev, {
@@ -569,37 +584,61 @@ export default function TheDemo() {
           })}
         </div>
 
-        {/* Transcript */}
-        <div ref={scrollRef} className="mt-6 h-[26rem] overflow-y-auto border border-ink/15 bg-ink/[0.015] p-4">
-          {phase === "idle" && (
-            <p className="flex h-full items-center justify-center text-center font-serif text-base italic text-ink/40">
-              Press “Run the demo” — the whole arc plays in about ninety seconds, with live whispers and a real Pipedrive write at the end.
-            </p>
-          )}
-          <div className="space-y-2">
-            {entries.map((e, i) =>
-              e.kind === "line" ? (
-                <p key={i} className="font-serif text-[14px] leading-snug text-ink/90">
-                  <span className={`font-edit-mono text-[10px] font-bold uppercase tracking-widest ${
-                    e.speaker === "SYNC" ? "text-emerald-800" :
-                    e.speaker === RM_NAME ? "text-ink/70" : "text-amber-800"
-                  }`}>{e.speaker}</span>
-                  {"  "}{e.text}
-                </p>
-              ) : e.kind === "event" ? (
-                <div key={i} className="border-2 border-dashed border-ink/30 bg-amber-50/60 px-3 py-2 text-center font-edit-mono text-[10px] uppercase tracking-widest text-amber-900">
-                  📞 {e.text}
-                </div>
-              ) : e.kind === "nudge" ? (
-                <NudgeRow key={i} text={e.text} tone={e.tone ?? "suggest"} />
-              ) : (
-                <ActionRow key={e.id ?? i}
-                  preview={e.text} status={actionStatus[e.id ?? ""] ?? "pending"}
-                  onApprove={() => approveAction(e.id!, e.tool!, e.args ?? {})}
-                  onSkip={() => setActionStatus(s => ({ ...s, [e.id!]: "skipped" }))} />
-              )
+        {/* Transcript + co-pilot sidebar (sidebar only renders during a call) */}
+        <div className={`mt-6 grid gap-4 ${live ? "md:grid-cols-[1fr_320px]" : "grid-cols-1"}`}>
+          <div ref={scrollRef} className="h-[28rem] overflow-y-auto border border-ink/15 bg-ink/[0.015] p-4">
+            {phase === "idle" && (
+              <p className="flex h-full items-center justify-center text-center font-serif text-base italic text-ink/40">
+                Press “Run the demo” — the whole arc plays in about ninety seconds, with live whispers and a real Pipedrive write at the end.
+              </p>
             )}
+            <div className="space-y-2">
+              {entries.map((e, i) =>
+                e.kind === "line" ? (
+                  <p key={i} className="font-serif text-[14px] leading-snug text-ink/90">
+                    <span className={`font-edit-mono text-[10px] font-bold uppercase tracking-widest ${
+                      e.speaker === "SYNC" ? "text-emerald-800" :
+                      e.speaker === RM_NAME ? "text-ink/70" : "text-amber-800"
+                    }`}>{e.speaker}</span>
+                    {"  "}{e.text}
+                  </p>
+                ) : e.kind === "event" ? (
+                  <div key={i} className="border-2 border-dashed border-ink/30 bg-amber-50/60 px-3 py-2 text-center font-edit-mono text-[10px] uppercase tracking-widest text-amber-900">
+                    📞 {e.text}
+                  </div>
+                ) : e.kind === "nudge" ? (
+                  <NudgeRow key={i} text={e.text} tone={e.tone ?? "suggest"} />
+                ) : (
+                  <ActionRow key={e.id ?? i}
+                    preview={e.text} status={actionStatus[e.id ?? ""] ?? "pending"}
+                    onApprove={() => approveAction(e.id!, e.tool!, e.args ?? {})}
+                    onSkip={() => setActionStatus(s => ({ ...s, [e.id!]: "skipped" }))} />
+                )
+              )}
+            </div>
           </div>
+
+          {/* Right rail — live intelligence */}
+          {live && (
+            <CopilotSidebar
+              nudges={sidebarNudges}
+              actions={sidebarActions.map(a => ({
+                ...a,
+                status: actionStatus[a.id] ?? "pending",
+              }))}
+              onApprove={(id, tool, args) => approveAction(id, tool, args)}
+              onSkip={(id) => setActionStatus(s => ({ ...s, [id]: "skipped" }))}
+              onSayClick={(line) => {
+                // Optional: speak it aloud so the RM can hear the suggested line
+                // through the earbud. (User can also just read it on-screen.)
+                try {
+                  const u = new SpeechSynthesisUtterance(line);
+                  u.rate = 1.0; u.pitch = 0.95;
+                  window.speechSynthesis.speak(u);
+                } catch { /* no-op */ }
+              }}
+            />
+          )}
         </div>
 
         {/* RM mic state — only useful during the bridge */}
