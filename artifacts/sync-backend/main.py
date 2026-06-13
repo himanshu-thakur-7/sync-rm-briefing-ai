@@ -43,6 +43,15 @@ async def lifespan(app: FastAPI):
     logger.info("Legacy CRM_ADAPTER env: %s", settings.crm_adapter)
     logger.info("Ringg configured: %s", bool(settings.ringg_api_key))
     logger.info("OpenAI configured: %s", bool(settings.openai_api_key))
+    # Pre-warm Risk Radar so the first /top_priority call from a Ringg agent
+    # (after a Render cold-start) hits an instant cache — Ringg tool-timeout
+    # is well under our uncached scan time.
+    import asyncio as _asyncio
+    try:
+        from routers.ringg_tools import prewarm_radar
+        _asyncio.create_task(prewarm_radar())
+    except Exception as e:
+        logger.warning("Radar prewarm scheduling failed: %s", e)
     yield
     logger.info("SYNC backend shutting down.")
     await dispose_db()

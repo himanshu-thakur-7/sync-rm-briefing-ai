@@ -18,6 +18,7 @@ Design constraints (learned the hard way):
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date
 from typing import Optional
 
@@ -27,6 +28,35 @@ from services import connection_registry
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/ringg-tools", tags=["ringg-tools"])
+
+# Risk Radar takes ~5-15 Pipedrive HTTP calls per scan (3-10s wall-clock). Ringg's
+# on-call tool timeout is ~5-10s, so an uncached scan during a live call frequently
+# times out → the agent falls back to its apology line. A short cache lets the
+# second-and-subsequent calls return instantly while keeping the data fresh.
+_RADAR_CACHE: dict[str, tuple[float, list]] = {}
+_RADAR_CACHE_TTL = 60  # seconds
+
+
+async def _cached_radar(connection_id: str) -> list:
+    now = time.time()
+    hit = _RADAR_CACHE.get(connection_id)
+    if hit and (now - hit[0]) < _RADAR_CACHE_TTL:
+        return hit[1]
+    from services.risk_radar import scan
+    plays = list(await scan(connection_id))
+    _RADAR_CACHE[connection_id] = (now, plays)
+    return plays
+
+
+async def prewarm_radar() -> None:
+    """Pre-run the radar on the default connection so the first agent call
+    after a Render cold-start gets an instant cache hit."""
+    try:
+        cid = await connection_registry.default_connection_id()
+        await _cached_radar(cid)
+        logger.info("Radar cache prewarmed for %s", cid)
+    except Exception as e:
+        logger.warning("Radar prewarm skipped: %s", e)
 
 
 async def _params(request: Request) -> dict:
@@ -172,9 +202,8 @@ async def top_priority(request: Request):
     connection_id = await _connection_id()
 
     try:
-        from services.risk_radar import scan
-        # scan() returns list[DetectedPlay] — pure dataclasses, no .id / .status.
-        plays = list(await scan(connection_id))
+        # Cached (TTL 60s) — keeps tool calls under Ringg's timeout.
+        plays = list(await _cached_radar(connection_id))
     except Exception as e:
         logger.warning("ringg-tools top_priority scan failed: %s", e)
         plays = []
@@ -233,8 +262,7 @@ async def start_call_with(request: Request):
             target = matches[0] if matches else None
         if target is None:
             # No client mentioned — fall back to the current top priority.
-            from services.risk_radar import scan
-            plays = list(await scan(connection_id))
+            plays = list(await _cached_radar(connection_id))
             if plays:
                 matches = await adapter.search_client(plays[0].client_name)
                 target = matches[0] if matches else None
