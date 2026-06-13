@@ -562,6 +562,15 @@ class PipedriveCRMAdapter(CRMAdapter):
                     hour += 12  # business-hours default: bare 1–7 reads as PM
                 due_time = f"{hour:02d}:{minutes}"
 
+        # Safety net: if the LLM passed a date-only "when" (e.g. just
+        # "2026-06-13") the time regex finds no match. Default to a sensible
+        # business hour rather than letting Pipedrive default to 00:00
+        # (= 12 AM, which is what was observed in the demo). 16:00 IST is the
+        # most common follow-up slot in a banking RM workflow.
+        if not due_time:
+            logger.info("Pipedrive _parse_when: no time in %r — defaulting to 16:00 IST", when)
+            due_time = "16:00"
+
         # Pipedrive's API treats due_time as UTC and renders it in the
         # account's display timezone — so a spoken local time must be
         # converted, or "4 PM" lands as 9:30 PM on an IST account.

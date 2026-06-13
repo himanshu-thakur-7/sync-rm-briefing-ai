@@ -117,7 +117,18 @@ _TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "when": {"type": "string", "description": "ISO 8601 datetime, e.g. 2025-06-15T10:00:00"},
+                    "when": {
+                        "type": "string",
+                        "description": (
+                            "REQUIRED full datetime in Asia/Kolkata local time. "
+                            "Format: 'YYYY-MM-DD HH:MM' (24-hour, e.g. '2026-06-18 16:00' for 4 PM IST). "
+                            "MUST include BOTH date AND time — never date-only. "
+                            "If the user said '5 PM' without a date, use today's date. "
+                            "If they said 'Thursday' without a time, ASK rather than guessing — "
+                            "but if forced to pick, use 16:00 as a business-hours default. "
+                            "Convert spoken AM/PM correctly: '5 PM' = '17:00', '9 AM' = '09:00'."
+                        ),
+                    },
                     "kind": {"type": "string", "enum": ["call", "meeting", "email", "branch_visit"]},
                     "notes": {"type": "string"},
                 },
