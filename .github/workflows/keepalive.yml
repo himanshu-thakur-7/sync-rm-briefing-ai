@@ -5,16 +5,26 @@ name: keep-backend-warm
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    # Every 45s the radar cache TTL expires (60s). Pinging every 5 min keeps
+    # both the server warm AND the radar cache permanently populated so the
+    # Ringg agent's top_priority tool call NEVER pays a cold-scan cost.
+    - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping healthz
+      - name: Ping healthz + radar
         run: |
-          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 \
-            https://sync-backend-u9rv.onrender.com/api/healthz || echo "000")
-          echo "healthz → $code"
-          # Don't fail the workflow on a transient miss — the next tick retries.
+          set +e
+          h=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 \
+            https://sync-backend-u9rv.onrender.com/api/healthz)
+          echo "healthz → $h"
+          # Warm the radar cache so the next agent tool call is instant.
+          t=$(curl -s -o /dev/null -w "%{http_code}|%{time_total}" --max-time 30 \
+            -X POST -H "Content-Type: application/json" -d '{}' \
+            https://sync-backend-u9rv.onrender.com/api/v1/ringg-tools/top_priority)
+          echo "top_priority → $t"
+          # Best-effort — never fail the workflow on transient misses.
+          exit 0

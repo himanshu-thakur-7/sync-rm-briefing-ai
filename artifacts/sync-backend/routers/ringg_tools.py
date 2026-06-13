@@ -34,7 +34,10 @@ router = APIRouter(prefix="/api/v1/ringg-tools", tags=["ringg-tools"])
 # times out → the agent falls back to its apology line. A short cache lets the
 # second-and-subsequent calls return instantly while keeping the data fresh.
 _RADAR_CACHE: dict[str, tuple[float, list]] = {}
-_RADAR_CACHE_TTL = 60  # seconds
+# 10 min — comfortably above the keep-alive cron interval (5 min), so the
+# agent's tool call always lands on a warm cache. For the demo the underlying
+# Pipedrive data won't change in 10 min.
+_RADAR_CACHE_TTL = 600
 
 
 async def _cached_radar(connection_id: str) -> list:
