@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Device, Call } from "@twilio/voice-sdk";
-import { Phone, PhoneOff, Loader2 } from "lucide-react";
+import { PhoneOff, Loader2 } from "lucide-react";
 
 interface Props {
   callKey: string;
@@ -13,6 +13,7 @@ type Status = "init" | "connecting" | "ringing" | "connected" | "disconnected" |
 
 export function TwilioCallControls({ callKey, clientPhone, clientName, onCallEnded }: Props) {
   const [status, setStatus] = useState<Status>("init");
+  const [errorDetail, setErrorDetail] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const deviceRef = useRef<Device | null>(null);
   const callRef = useRef<Call | null>(null);
@@ -20,12 +21,18 @@ export function TwilioCallControls({ callKey, clientPhone, clientName, onCallEnd
 
   useEffect(() => {
     let cancelled = false;
+    console.log("[TwilioCallControls] mounting", { callKey, clientPhone, clientName });
 
     async function init() {
       try {
+        console.log("[Twilio] Fetching RM voice token…");
         const resp = await fetch("/api/v1/coached-calls/rm-token");
-        if (!resp.ok) throw new Error(`Token fetch failed: ${resp.status}`);
+        if (!resp.ok) {
+          const body = await resp.text().catch(() => "");
+          throw new Error(`Token fetch failed (${resp.status}): ${body}`);
+        }
         const { token } = await resp.json();
+        console.log("[Twilio] Token received, length:", token?.length);
 
         if (cancelled) return;
 
@@ -36,11 +43,13 @@ export function TwilioCallControls({ callKey, clientPhone, clientName, onCallEnd
         deviceRef.current = device;
 
         device.on("error", (err) => {
-          console.error("Twilio Device error:", err);
+          console.error("[Twilio] Device error:", err);
+          setErrorDetail(err?.message || String(err));
           setStatus("error");
         });
 
         await device.register();
+        console.log("[Twilio] Device registered, connecting…", { callKey, clientPhone });
         if (cancelled) return;
 
         setStatus("connecting");
@@ -51,25 +60,46 @@ export function TwilioCallControls({ callKey, clientPhone, clientName, onCallEnd
           },
         });
         callRef.current = call;
+        console.log("[Twilio] Call initiated, SID:", call.parameters?.CallSid);
 
-        call.on("ringing", () => setStatus("ringing"));
+        call.on("ringing", () => {
+          console.log("[Twilio] Ringing…");
+          setStatus("ringing");
+        });
         call.on("accept", () => {
+          console.log("[Twilio] Call accepted — connected!");
           setStatus("connected");
           timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
         });
         call.on("disconnect", () => {
+          console.log("[Twilio] Call disconnected");
           setStatus("disconnected");
           if (timerRef.current) clearInterval(timerRef.current);
           onCallEnded?.();
         });
+        call.on("cancel", () => {
+          console.log("[Twilio] Call cancelled");
+          setStatus("disconnected");
+          if (timerRef.current) clearInterval(timerRef.current);
+          onCallEnded?.();
+        });
+        call.on("reject", () => {
+          console.log("[Twilio] Call rejected");
+          setErrorDetail("Call was rejected");
+          setStatus("error");
+        });
         call.on("error", (err) => {
-          console.error("Twilio Call error:", err);
+          console.error("[Twilio] Call error:", err);
+          setErrorDetail(err?.message || String(err));
           setStatus("error");
           if (timerRef.current) clearInterval(timerRef.current);
         });
-      } catch (err) {
-        console.error("Twilio init failed:", err);
-        if (!cancelled) setStatus("error");
+      } catch (err: any) {
+        console.error("[Twilio] Init failed:", err);
+        if (!cancelled) {
+          setErrorDetail(err?.message || String(err));
+          setStatus("error");
+        }
       }
     }
 
@@ -100,7 +130,7 @@ export function TwilioCallControls({ callKey, clientPhone, clientName, onCallEnd
           <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
         )}
         <span className="font-edit-mono text-[11px] uppercase tracking-widest text-ink/70">
-          {status === "init" && "Initializing…"}
+          {status === "init" && "Initializing Twilio…"}
           {status === "connecting" && `Connecting to ${firstName}…`}
           {status === "ringing" && `Ringing ${firstName}…`}
           {status === "connected" && `On call with ${firstName} — ${fmt(elapsed)}`}
@@ -129,9 +159,14 @@ export function TwilioCallControls({ callKey, clientPhone, clientName, onCallEnd
       )}
 
       {status === "error" && (
-        <p className="max-w-sm text-center font-serif text-[12px] italic text-red-800">
-          Could not connect the call. Check that Twilio credentials are configured and the client number is verified.
-        </p>
+        <div className="max-w-md text-center">
+          <p className="font-serif text-[12px] italic text-red-800">
+            Could not connect the call.
+          </p>
+          {errorDetail && (
+            <p className="mt-1 font-edit-mono text-[10px] text-red-700/70">{errorDetail}</p>
+          )}
+        </div>
       )}
     </div>
   );

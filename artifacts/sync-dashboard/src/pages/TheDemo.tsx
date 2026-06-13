@@ -322,11 +322,24 @@ export default function TheDemo() {
     setSpeaking(null);
   };
 
+  const fetchRMAudio = async (text: string): Promise<Blob | null> => {
+    try {
+      const r = await fetch("/api/v1/coached-calls/tts", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, speaker: "rm" }),
+      });
+      if (!r.ok) return null;
+      return await r.blob();
+    } catch { return null; }
+  };
+
   const sayAsRM = async (text: string) => {
     setEntries(prev => [...prev, { kind: "line", speaker: RM_NAME, text }]);
     setSpeaking("rm");
     postLine("rm", text);
-    await speakDialogue(text, RM_VOICE);
+    const blob = await fetchRMAudio(text);
+    if (blob && !stopRef.current) await playBlob(blob);
+    else if (!stopRef.current) await speakDialogue(text, RM_VOICE);
     setSpeaking(null);
   };
 
@@ -391,7 +404,18 @@ export default function TheDemo() {
     }, 60_000);
   });
 
-  const startBridge = async (b: BridgeOpenEvent) => {
+  // Scripted RM lines for the fully automated demo bridge. Each line is sent
+  // to the OpenAI client agent, which replies in-character. This way the demo
+  // runs end-to-end without anyone touching the mic.
+  const AUTO_RM_LINES = [
+    "Hi, this is Himanshu from Acme. Do you have two minutes?",
+    "I was looking at your account this morning and wanted to talk about the business loan EMIs.",
+    "I completely understand. There is actually a way to bring your monthly outgo down quite a bit.",
+    "How about this — I will hold a slot Thursday at four PM and walk you through the numbers. No commitment.",
+    "Perfect, locking it in. I will send the details. Thanks, talk Thursday!",
+  ];
+
+  const startBridge = async (b: BridgeOpenEvent, autoPlay = false) => {
     // Open the OpenAI role-play session for the client.
     const r = await fetch(`/api/v1/client-agent/${b.bridge_id}/start`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -408,28 +432,46 @@ export default function TheDemo() {
       await drain();
     }
 
-    // Press-and-hold flow: wait for the user to actually speak before
-    // generating a client reply. No timeout fallback — silence stays silent.
-    for (let i = 0; i < 6; i++) {
-      if (stopRef.current) break;
-      const said = (await awaitRmTurn()).trim();
-      if (stopRef.current) break;
-      // Skip empty turns instead of inserting canned text.
-      if (!said) continue;
-      setEntries(prev => [...prev, { kind: "line", speaker: RM_NAME, text: said }]);
-      postLine("rm", said);
+    if (autoPlay) {
+      // Fully scripted: play each RM line, get client reply, repeat.
+      for (const rmLine of AUTO_RM_LINES) {
+        if (stopRef.current) break;
+        await sayAsRM(rmLine);
+        await drain();
+        if (stopRef.current) break;
 
-      // Get the client reply.
-      const turn = await fetch(`/api/v1/client-agent/${b.bridge_id}/turn`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rm_text: said }),
-      }).then(r => r.ok ? r.json() : null).catch(() => null);
-      if (!turn?.text) break;
-      await sayAsClient(turn.text,
-        turn.audio_ready
-          ? `/api/v1/client-agent/${b.bridge_id}/audio/${turn.turn_id}.mp3`
-          : undefined);
-      await drain();
+        const turn = await fetch(`/api/v1/client-agent/${b.bridge_id}/turn`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rm_text: rmLine }),
+        }).then(r => r.ok ? r.json() : null).catch(() => null);
+        if (!turn?.text) break;
+        await sayAsClient(turn.text,
+          turn.audio_ready
+            ? `/api/v1/client-agent/${b.bridge_id}/audio/${turn.turn_id}.mp3`
+            : undefined);
+        await drain();
+      }
+    } else {
+      // Interactive: press-and-hold mic for each RM turn.
+      for (let i = 0; i < 6; i++) {
+        if (stopRef.current) break;
+        const said = (await awaitRmTurn()).trim();
+        if (stopRef.current) break;
+        if (!said) continue;
+        setEntries(prev => [...prev, { kind: "line", speaker: RM_NAME, text: said }]);
+        postLine("rm", said);
+
+        const turn = await fetch(`/api/v1/client-agent/${b.bridge_id}/turn`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rm_text: said }),
+        }).then(r => r.ok ? r.json() : null).catch(() => null);
+        if (!turn?.text) break;
+        await sayAsClient(turn.text,
+          turn.audio_ready
+            ? `/api/v1/client-agent/${b.bridge_id}/audio/${turn.turn_id}.mp3`
+            : undefined);
+        await drain();
+      }
     }
 
     // Cleanup the role-play session.
@@ -505,7 +547,7 @@ export default function TheDemo() {
     await ringTone(); await ringTone();
     if (stopRef.current) return;
     setPhase("bridge");
-    await startBridge(b);
+    await startBridge(b, false);
     if (stopRef.current) return;
     // End the simulate session so post-call analysis runs.
     if (callIdRef.current) {
@@ -609,7 +651,7 @@ export default function TheDemo() {
       return;
     }
 
-    await startBridge(bridge ?? bridgeData!);
+    await startBridge(bridge ?? bridgeData!, true);
 
     if (stopRef.current) return;
     setPhase("wrapup");
