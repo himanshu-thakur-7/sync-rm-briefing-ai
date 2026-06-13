@@ -486,3 +486,40 @@ async def _process_ringg_event(
                 "received_at": datetime.now(timezone.utc).isoformat(),
             },
         })
+
+
+# ─── Twilio status callback ──────────────────────────────────────────────
+
+@router.post("/api/v1/webhooks/twilio/status")
+async def twilio_status_callback(request: Request):
+    """Twilio posts form-encoded status events here.
+    On terminal states we close the coaching session and fire post-call analysis."""
+    form = await request.form()
+    call_status = str(form.get("CallStatus", ""))
+    call_sid = str(form.get("CallSid", ""))
+    logger.info("Twilio status callback: SID=%s status=%s", call_sid, call_status)
+
+    if call_status in ("completed", "failed", "busy", "no-answer", "canceled"):
+        # Find the coached-call session keyed by this Twilio SID
+        from routers.coached_calls import _SESSIONS
+        call_key = None
+        for k, sess in _SESSIONS.items():
+            if sess.get("twilio_sid") == call_sid:
+                call_key = k
+                break
+
+        if call_key:
+            try:
+                from services import coaching_engine
+                coaching_engine.end_call(call_key)
+            except Exception:
+                pass
+            transcript = "\n".join(_SESSIONS.get(call_key, {}).get("lines", []))
+            if transcript:
+                asyncio.create_task(run_post_call_analysis(call_key, transcript_override=transcript))
+
+        await broadcast_event({"type": "bridge_close", "data": {
+            "call_sid": call_sid, "call_key": call_key, "status": call_status,
+        }})
+
+    return {"status": "ok"}

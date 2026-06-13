@@ -23,6 +23,7 @@ import { playChime, setTheaterActive, speakDialogue, whisperSupported } from "@/
 import { WebCallWidget } from "@/components/WebCallWidget";
 import { CoachingOverlay } from "@/components/CoachingOverlay";
 import { CopilotSidebar } from "@/components/CopilotSidebar";
+import { TwilioCallControls } from "@/components/TwilioCallControls";
 
 type Phase =
   | "idle"
@@ -45,6 +46,7 @@ interface Entry {
 interface BridgeOpenEvent {
   bridge_id: string; client_id: string; client_name: string;
   client_brief: string; connection_id: string;
+  mode?: string; call_key?: string; client_phone?: string;
 }
 
 const TONE_META: Record<string, { cls: string; Icon: typeof AlertTriangle; label: string }> = {
@@ -83,6 +85,7 @@ export default function TheDemo() {
   );
   const [speaking, setSpeaking] = useState<"sync" | "rm" | "client" | "whisper" | null>(null);
   const [bridge, setBridge] = useState<BridgeOpenEvent | null>(null);
+  const [bridgeMode, setBridgeMode] = useState<"simulated" | "twilio">("simulated");
   const [rmListening, setRmListening] = useState(false);
   const [rmInterim, setRmInterim] = useState("");
 
@@ -107,11 +110,17 @@ export default function TheDemo() {
         // Always store the bridge data — it carries the client brief.
         const data = msg.data as BridgeOpenEvent;
         setBridge(data);
+        if (data.mode === "twilio") setBridgeMode("twilio");
+        else setBridgeMode("simulated");
         // If we're idle (i.e. the trigger came from the Ringg widget, not our
         // scripted arc), auto-enter bridge mode using the data from the event.
         if (phase === "idle" || phase === "ended") {
           callIdRef.current = id || `widget_${Date.now()}`;
-          runWidgetBridge(data);
+          if (data.mode === "twilio") {
+            runTwilioBridge(data);
+          } else {
+            runWidgetBridge(data);
+          }
         }
         return;
       }
@@ -171,6 +180,8 @@ export default function TheDemo() {
     try { w.dvAgent?.unload?.(); w.dvAgent?.destroy?.(); w.dvAgent?.close?.(); } catch {}
 
     // DOM fallback: nuke anything the CDN injected.
+    // First, stop any media tracks inside iframes before removing them —
+    // removing the iframe node alone doesn't always release the mic immediately.
     const selectors = [
       '[class*="dv-agent"]', '[id*="dv-agent"]',
       '[class*="ringg"]', '[id*="ringg"]',
@@ -178,21 +189,38 @@ export default function TheDemo() {
       'iframe[src*="agents-cdn"]',
     ];
     document.querySelectorAll(selectors.join(",")).forEach(el => {
+      try {
+        const iframe = el as HTMLIFrameElement;
+        if (iframe.contentWindow) {
+          // Try to stop any MediaStreams the iframe's context holds.
+          const iframeNav = (iframe.contentWindow as any).navigator;
+          if (iframeNav?.mediaDevices?.getUserMedia) {
+            iframeNav.mediaDevices.getUserMedia({ audio: true })
+              .then((s: MediaStream) => s.getTracks().forEach((t: MediaStreamTrack) => t.stop()))
+              .catch(() => {});
+          }
+        }
+      } catch { /* cross-origin iframe — can't reach in, removal will have to suffice */ }
+      try { (el as HTMLElement).remove(); } catch {}
+    });
+    // Also remove any non-iframe widget containers (divs, shadow hosts).
+    document.querySelectorAll('[class*="dv-agent"], [id*="dv-agent"], [class*="ringg"], [id*="ringg"]').forEach(el => {
       try { (el as HTMLElement).remove(); } catch {}
     });
     // Reset the load guard so a subsequent retry can re-inject if needed.
     delete (window as any).__ringgWidgetLoaded;
+    // Wait for the browser to fully release the mic device after iframe removal.
+    await sleep(500);
     // Cut any orphaned media streams the widget left holding the mic.
     if (typeof navigator !== "undefined" && navigator.mediaDevices) {
       try {
-        // Force a quick getUserMedia release — some browsers free the device on stop().
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(t => t.stop());
       } catch { /* user already denied; nothing to free */ }
     }
     // Cancel any in-flight TTS so the bridge has a clean audio surface.
     if (whisperSupported()) window.speechSynthesis.cancel();
-    await sleep(180);
+    await sleep(500);
   };
 
   const ringTone = async () => {
@@ -408,6 +436,36 @@ export default function TheDemo() {
     fetch(`/api/v1/client-agent/${b.bridge_id}/end`, { method: "POST" }).catch(() => {});
   };
 
+  // ── Twilio bridge: real phone call, no OpenAI client agent ──────────
+  const runTwilioBridge = async (b: BridgeOpenEvent) => {
+    stopRef.current = false;
+    setEntries([]); setActionStatus({});
+    setSidebarNudges([]); setSidebarActions([]);
+    nudgeQueue.current = []; actionQueue.current = [];
+    setBridgeMode("twilio");
+
+    await teardownRinggWidget();
+
+    setPhase("bridging");
+    setEntries(prev => [...prev, {
+      kind: "event",
+      text: `Dialing ${(b.client_name || "the client").split(" ")[0]} on their phone — SYNC is listening for coaching.`,
+    }]);
+    await ringTone(); await ringTone();
+    if (stopRef.current) return;
+    setPhase("bridge");
+    // TwilioCallControls handles the actual call — we just stay in bridge
+    // phase until the call ends (onCallEnded callback).
+  };
+
+  const onTwilioCallEnded = () => {
+    if (callIdRef.current) {
+      fetch(`/api/v1/coached-calls/simulate/${callIdRef.current}/end`, { method: "POST" }).catch(() => {});
+    }
+    setPhase("wrapup");
+    setTimeout(() => setPhase("ended"), 2000);
+  };
+
   // ── The arc ────────────────────────────────────────────────────────────
   // Widget-triggered bridge: the user is on a live Ringg widget call and the
   // agent just fired start_call_with. Skip the briefing prologue (already
@@ -506,6 +564,7 @@ export default function TheDemo() {
     // 4. SYNC kicks off the bridge — server broadcasts bridge_open via WS.
     setPhase("bridging");
     let bridgeData: BridgeOpenEvent | null = null;
+    let isTwilioMode = false;
     try {
       const r = await fetch("/api/v1/ringg-tools/start_call_with", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -519,10 +578,15 @@ export default function TheDemo() {
       if (r.ok) {
         const j = await r.json();
         await sayAsSync(j.spoken);
+        isTwilioMode = j.mode === "twilio";
         bridgeData = {
           bridge_id: j.bridge_id, client_id: j.client_id, client_name: j.client_name,
           client_brief: "", connection_id: "conn_pipedrive_demo",
+          mode: j.mode, call_key: j.call_key,
+          client_phone: liveClient ? clientPhone : undefined,
         };
+        if (isTwilioMode) setBridgeMode("twilio");
+        setBridge(bridgeData);
         // The WS broadcast usually arrives first with the brief — wait briefly.
         for (let i = 0; i < 30 && !bridge; i++) await sleep(50);
       }
@@ -538,6 +602,13 @@ export default function TheDemo() {
 
     // 5. The bridge — live whisper coaching while you and the client converse.
     setPhase("bridge");
+
+    if (isTwilioMode) {
+      // Twilio mode: TwilioCallControls component handles the real call.
+      // We stay in "bridge" phase until onTwilioCallEnded fires.
+      return;
+    }
+
     await startBridge(bridge ?? bridgeData!);
 
     if (stopRef.current) return;
@@ -736,8 +807,16 @@ export default function TheDemo() {
           )}
         </div>
 
-        {/* Press-and-hold Talk button during the bridge */}
-        {phase === "bridge" && (
+        {/* Call controls during the bridge phase */}
+        {phase === "bridge" && bridgeMode === "twilio" && bridge?.call_key && (
+          <TwilioCallControls
+            callKey={bridge.call_key}
+            clientPhone={bridge.client_phone || clientPhone}
+            clientName={bridge.client_name || "Client"}
+            onCallEnded={onTwilioCallEnded}
+          />
+        )}
+        {phase === "bridge" && bridgeMode !== "twilio" && (
           <div className="mt-4 flex flex-col items-center gap-2 border-t border-ink/15 pt-4">
             <button
               onMouseDown={beginTalk}

@@ -301,14 +301,51 @@ async def start_call_with(request: Request):
 
     bridge_id = f"bridge_{target.client_id}_{call_id[-6:]}"
 
-    # ── Live mode: place a REAL outbound Ringg call to the client phone ──
+    # ── Live mode: place a REAL call to the client phone ──
     if live_mode or forced_phone:
         from config import settings as _settings
         client_phone = (forced_phone or _settings.demo_client_phone or "").strip()
         if not client_phone:
             return _ok("Live mode is on but I don't have a phone number to dial — pass client_phone with the request.")
+
+        # Prefer Twilio direct dial (RM browser ↔ client phone via Voice JS).
+        if _settings.twilio_account_sid and _settings.twilio_auth_token:
+            import uuid as _uuid
+            call_key = _uuid.uuid4().hex[:12]
+
+            # Register a coached-call session so the media stream WS + coaching work.
+            from routers.coached_calls import _SESSIONS
+            _SESSIONS[call_key] = {
+                "client_id": target.client_id,
+                "client_name": target.name,
+                "rm_name": _settings.demo_rm_name,
+                "connection_id": connection_id,
+                "client_phone": client_phone,
+                "lines": [],
+                "started_at": __import__("datetime").datetime.now(
+                    __import__("datetime").timezone.utc
+                ).isoformat(),
+            }
+
+            from routers.webhooks import broadcast_event
+            await broadcast_event({"type": "bridge_open", "data": {
+                "call_id": call_id, "bridge_id": bridge_id,
+                "client_id": target.client_id, "client_name": target.name,
+                "client_brief": brief, "connection_id": connection_id,
+                "mode": "twilio", "call_key": call_key,
+                "client_phone": client_phone,
+            }})
+            return _ok(
+                f"Connecting you to {target.name.split(' ')[0]} now. "
+                "Your browser will place the call — I'll listen and coach on your dashboard.",
+                bridge_id=bridge_id, mode="twilio",
+                client_id=target.client_id, client_name=target.name,
+                call_key=call_key,
+            )
+
+        # Fallback: Ringg outreach agent (legacy path).
         if not _settings.ringg_outreach_agent_id or not _settings.ringg_api_key:
-            return _ok("Live mode needs the Ringg outreach agent configured — falling back to the in-browser bridge.")
+            return _ok("Live mode needs Twilio or Ringg outreach configured — falling back to the in-browser bridge.")
 
         try:
             from services.ringg_service import RinggService

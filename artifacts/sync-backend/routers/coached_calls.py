@@ -152,22 +152,10 @@ async def _start_twilio_bridge(body: StartRequest, client_phone: str, rm_phone: 
 
     base = settings.backend_url.rstrip("/")
     twiml_url = f"{base}/api/v1/coached-calls/twiml?key={call_key}"
+    status_url = f"{base}/api/v1/webhooks/twilio/status"
 
-    sid = settings.twilio_account_sid
-    async with httpx.AsyncClient(timeout=20, auth=(sid, settings.twilio_auth_token)) as client:
-        resp = await client.post(
-            f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Calls.json",
-            data={
-                "To": rm_phone,
-                "From": settings.twilio_from_number,
-                "Url": twiml_url,
-                "Method": "GET",
-            },
-        )
-        if resp.status_code >= 400:
-            logger.error("Twilio call create failed: %s %s", resp.status_code, resp.text[:300])
-            raise HTTPException(502, f"Twilio error {resp.status_code}: {resp.text[:200]}")
-        twilio_sid = resp.json().get("sid", "")
+    from services.twilio_service import create_outbound_call
+    twilio_sid = create_outbound_call(to=rm_phone, twiml_url=twiml_url, status_callback=status_url)
 
     _SESSIONS[call_key]["twilio_sid"] = twilio_sid
 
@@ -232,16 +220,39 @@ async def _start_ringg_chaperone(body: StartRequest, client_phone: str, rm_phone
 # ─── TwiML for the RM leg ──────────────────────────────────────────────────
 
 @router.api_route("/twiml", methods=["GET", "POST"])
-async def coached_twiml(key: str = Query(...)):
-    sess = _SESSIONS.get(key)
+async def coached_twiml(request: Request, key: str = Query(None)):
+    """Serve TwiML for both server-originated calls (key in query string) and
+    browser-originated calls from Voice JS (call_key + client_phone in POST body)."""
+    call_key = key
+    client_phone = None
+
+    if not call_key:
+        form = await request.form()
+        call_key = str(form.get("call_key") or form.get("key") or "")
+        client_phone = str(form.get("client_phone") or "")
+
+    if not call_key:
+        return Response(content="<Response><Say>No call key provided.</Say></Response>",
+                        media_type="application/xml")
+
+    sess = _SESSIONS.get(call_key)
+    if sess is None and client_phone:
+        _SESSIONS[call_key] = {
+            "client_id": "", "client_name": "Client",
+            "rm_name": settings.demo_rm_name, "connection_id": None,
+            "client_phone": client_phone, "lines": [],
+            "started_at": datetime.now(timezone.utc).isoformat(),
+        }
+        sess = _SESSIONS[call_key]
+
     if sess is None:
         return Response(content="<Response><Say>Session not found.</Say></Response>",
                         media_type="application/xml")
 
     ws_base = settings.backend_url.rstrip("/")
     ws_base = ws_base.replace("https://", "wss://").replace("http://", "ws://")
-    stream_url = f"{ws_base}/api/v1/coached-calls/media/{key}"
-    client_phone = sess["client_phone"]
+    stream_url = f"{ws_base}/api/v1/coached-calls/media/{call_key}"
+    dest_phone = client_phone or sess["client_phone"]
 
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -250,10 +261,35 @@ async def coached_twiml(key: str = Query(...)):
   </Start>
   <Say voice="alice">Sync is on the line. Whisper coaching is live on your dashboard. Connecting your client now.</Say>
   <Dial callerId="{settings.twilio_from_number}">
-    <Number>{client_phone}</Number>
+    <Number>{dest_phone}</Number>
   </Dial>
 </Response>"""
     return Response(content=twiml, media_type="application/xml")
+
+
+# ─── Voice JS access token for RM browser leg ────────────────────────────
+
+@router.get("/rm-token")
+async def rm_voice_token(identity: str = "rm"):
+    """Return a short-lived Twilio access token so the FE can place calls via Voice JS."""
+    from services.twilio_service import mint_voice_token
+    return {"token": mint_voice_token(identity)}
+
+
+# ─── Debug: test outbound dial ────────────────────────────────────────────
+
+class _DebugDialBody(BaseModel):
+    to: str  # E.164 phone number
+
+@router.post("/debug/twilio-dial")
+async def debug_twilio_dial(body: _DebugDialBody):
+    """Dial a number with a <Say>hello</Say> — smoke test for Twilio creds."""
+    if not _twilio_ready():
+        raise HTTPException(400, "Twilio not configured")
+    from services.twilio_service import create_outbound_call
+    say_url = "http://twimlets.com/message?Message%5B0%5D=Hello+from+SYNC.+Twilio+is+working."
+    sid = create_outbound_call(to=body.to, twiml_url=say_url)
+    return {"ok": True, "call_sid": sid, "to": body.to}
 
 
 # ─── Twilio Media Streams sink ─────────────────────────────────────────────
@@ -287,8 +323,8 @@ async def media_sink(websocket: WebSocket, call_key: str):
             return  # silence window — don't burn an STT call
         wav = _pcm16_to_wav(pcm)
         try:
-            from services.voice_command_engine import transcribe
-            text = (await transcribe(wav, "audio/wav")).strip()
+            from services.transcription import get_transcriber
+            text = (await get_transcriber().transcribe(wav)).strip()
         except Exception as e:
             logger.warning("Coached call %s: STT failed: %s", call_key, e)
             return
