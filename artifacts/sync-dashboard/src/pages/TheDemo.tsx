@@ -21,6 +21,7 @@ import {
 import { useWebSocket, WebSocketMessage } from "@/hooks/use-websocket";
 import { playChime, setTheaterActive, speakDialogue, whisperSupported } from "@/lib/whisper";
 import { WebCallWidget } from "@/components/WebCallWidget";
+import { CoachingOverlay } from "@/components/CoachingOverlay";
 
 type Phase =
   | "idle"
@@ -87,14 +88,33 @@ export default function TheDemo() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const sttRef = useRef<any>(null);
 
-  // Subscribe to coaching + bridge events for our call.
+  // Subscribe to coaching + bridge events. We accept events for our own arc's
+  // call_id AND any bridge_open / coaching event from a Ringg widget call —
+  // a widget-call bridge_open is the trigger that auto-activates this UI even
+  // when the user never pressed "Run the demo".
   useWebSocket({
     onMessage: (msg: WebSocketMessage) => {
       const id = msg.data?.call_id;
-      if (msg.type === "bridge_open" && id === callIdRef.current) {
-        setBridge(msg.data as BridgeOpenEvent);
+      const isOurs = !!id && id === callIdRef.current;
+
+      if (msg.type === "bridge_open") {
+        // Always store the bridge data — it carries the client brief.
+        const data = msg.data as BridgeOpenEvent;
+        setBridge(data);
+        // If we're idle (i.e. the trigger came from the Ringg widget, not our
+        // scripted arc), auto-enter bridge mode using the data from the event.
+        if (phase === "idle" || phase === "ended") {
+          callIdRef.current = id || `widget_${Date.now()}`;
+          runWidgetBridge(data);
+        }
+        return;
       }
-      if (!callIdRef.current || id !== callIdRef.current) return;
+
+      // For coaching events, gate on our call_id only when we have one.
+      // Without that filter the page would catch coaching from unrelated calls;
+      // with the auto-bridge above setting callIdRef, the widget path is covered.
+      if (!isOurs) return;
+
       if (msg.type === "coaching_nudge") {
         const tone = (["warn", "opportunity", "suggest"].includes(msg.data?.tone)
           ? msg.data.tone : "suggest") as Nudge["tone"];
@@ -309,6 +329,29 @@ export default function TheDemo() {
   };
 
   // ── The arc ────────────────────────────────────────────────────────────
+  // Widget-triggered bridge: the user is on a live Ringg widget call and the
+  // agent just fired start_call_with. Skip the briefing prologue (already
+  // happened in the widget) and go straight to the bridge phase.
+  const runWidgetBridge = async (b: BridgeOpenEvent) => {
+    stopRef.current = false;
+    setEntries([]); setActionStatus({});
+    nudgeQueue.current = []; actionQueue.current = [];
+    setPhase("bridging");
+    setEntries(prev => [...prev, {
+      kind: "event",
+      text: `Bringing ${(b.client_name || "the client").split(" ")[0]} on the line — the Ringg agent will stay silent and assist.`,
+    }]);
+    await ringTone(); await ringTone();
+    if (stopRef.current) return;
+    setPhase("bridge");
+    await startBridge(b);
+    if (stopRef.current) return;
+    setPhase("wrapup");
+    await sleep(700);
+    await sayAsSync("Call wrapped. I've logged a recap and updated the radar.");
+    setPhase("ended");
+  };
+
   const runArc = async () => {
     stopRef.current = false;
     setEntries([]); setActionStatus({}); setBridge(null);
@@ -580,6 +623,10 @@ export default function TheDemo() {
           bottom-right and talk to SYNC for real on a Ringg web call.
         </p>
       </main>
+
+      {/* Live whisper coaching — renders nudge cards globally during a real
+          widget call (transcripts come via Ringg webhooks → coaching engine). */}
+      <CoachingOverlay />
 
       {/* Ringg web-call widget — same component as the dashboard, mounted here too */}
       <WebCallWidget />
