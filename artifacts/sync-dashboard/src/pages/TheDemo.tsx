@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useWebSocket, WebSocketMessage } from "@/hooks/use-websocket";
 import { playChime, setTheaterActive, speakDialogue, whisperSupported } from "@/lib/whisper";
+import { WebCallWidget } from "@/components/WebCallWidget";
 
 type Phase =
   | "idle"
@@ -432,7 +433,7 @@ export default function TheDemo() {
                 onClick={(e) => { e.preventDefault(); window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }); }}
                 className="inline-flex items-center gap-2 border-2 border-ink/40 bg-paper px-6 py-3 font-edit-mono text-[11px] uppercase tracking-widest text-ink/80 hover:border-ink hover:bg-ink hover:text-cream"
               >
-                <Phone className="h-3.5 w-3.5" /> Call SYNC for real (web widget below)
+                <Phone className="h-3.5 w-3.5" /> Call SYNC for real — bottom-right
               </a>
             </div>
           )}
@@ -522,10 +523,13 @@ export default function TheDemo() {
 
         {/* Widget pointer */}
         <p id="widget" className="mt-12 border-t border-ink/15 pt-6 text-center font-serif text-base italic text-ink/60">
-          Or skip the simulation — open the floating <Phone className="inline h-3.5 w-3.5" /> button on the
-          dashboard and talk to SYNC for real on a Ringg web call.
+          Or skip the simulation — click the floating <Phone className="inline h-3.5 w-3.5" /> button
+          bottom-right and talk to SYNC for real on a Ringg web call.
         </p>
       </main>
+
+      {/* Ringg web-call widget — same component as the dashboard, mounted here too */}
+      <WebCallWidget />
     </div>
   );
 }
