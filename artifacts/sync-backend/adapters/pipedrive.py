@@ -342,11 +342,17 @@ class PipedriveCRMAdapter(CRMAdapter):
         p = (full.get("data") or {}) if isinstance(full, dict) else {}
         if not p:
             return None
-        profile = await self._person_to_profile(p)
-        risk = await self._person_to_risk(p)
-        cross_sell = await self._person_to_cross_sell(p)
-        products = await self.get_portfolio(client_id)
-        interactions, complaints, days_ago = await self.get_interactions(client_id)
+        # Run the three downstream Pipedrive fetches concurrently —
+        # /persons/{id}/deals and /persons/{id}/activities are independent.
+        import asyncio as _asyncio
+        profile_task = self._person_to_profile(p)
+        risk_task = self._person_to_risk(p)
+        cross_sell_task = self._person_to_cross_sell(p)
+        portfolio_task = self.get_portfolio(client_id)
+        interactions_task = self.get_interactions(client_id)
+        profile, risk, cross_sell, products, (interactions, complaints, days_ago) = await _asyncio.gather(
+            profile_task, risk_task, cross_sell_task, portfolio_task, interactions_task,
+        )
         return ClientFullProfile(
             profile=profile, products=products, risk=risk,
             interactions=interactions, complaints=complaints,

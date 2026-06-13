@@ -175,18 +175,32 @@ _RULES = [
 # ─────────────────────────────── scan ─────────────────────────────────────
 
 async def scan(connection_id: str) -> list[DetectedPlay]:
-    """Scan all clients in a connection, return one play per flagged client."""
+    """Scan all clients in a connection, return one play per flagged client.
+
+    Per-client lookups fire in PARALLEL (asyncio.gather). Sequential awaits
+    over 5+ Pipedrive persons were taking 7-10s wall-clock and pushing the
+    on-call tool past Ringg's timeout. Concurrency collapses that to the
+    slowest single client (~1-2s).
+    """
+    import asyncio as _asyncio
     from services import connection_registry
 
     adapter = await connection_registry.crm_for(connection_id)
     profiles = await adapter.list_all()
 
+    async def _safe_get(prof):
+        try:
+            return prof, await adapter.get_client(prof.client_id)
+        except Exception as e:
+            logger.warning("Radar get_client(%s) failed: %s", prof.client_id, e)
+            return prof, None
+
+    fulls = await _asyncio.gather(*(_safe_get(p) for p in profiles))
+
     plays: list[DetectedPlay] = []
-    for prof in profiles:
-        full = await adapter.get_client(prof.client_id)
+    for prof, full in fulls:
         if full is None:
             continue
-
         matched: list[DetectedPlay] = []
         for rule in _RULES:
             try:
@@ -200,13 +214,11 @@ async def scan(connection_id: str) -> list[DetectedPlay]:
         if not matched:
             continue
 
-        # Pick the highest-urgency play; record all matched trigger types on it.
         matched.sort(key=lambda p: _URGENCY_RANK.get(p.urgency, 0), reverse=True)
         winner = matched[0]
         winner.matched_triggers = [m.trigger_type for m in matched]
         plays.append(winner)
 
-    # Sort the final list by urgency so CRITICAL surfaces first.
     plays.sort(key=lambda p: _URGENCY_RANK.get(p.urgency, 0), reverse=True)
     logger.info("Risk Radar scan(%s): %d plays detected", connection_id, len(plays))
     return plays
