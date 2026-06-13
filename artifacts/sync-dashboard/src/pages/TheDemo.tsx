@@ -478,6 +478,61 @@ export default function TheDemo() {
     fetch(`/api/v1/client-agent/${b.bridge_id}/end`, { method: "POST" }).catch(() => {});
   };
 
+  // ── Test-only: skip straight to Twilio call without Ringg widget ────
+  const testTwilioCall = async () => {
+    stopRef.current = false;
+    setEntries([]); setActionStatus({});
+    setSidebarNudges([]); setSidebarActions([]);
+    nudgeQueue.current = []; actionQueue.current = [];
+    setBridgeMode("twilio");
+
+    const phone = clientPhone || "+917678456033";
+    setPhase("bridging");
+    setEntries(prev => [...prev, {
+      kind: "event", text: `[TEST] Calling start_call_with → Twilio direct dial to ${phone}`,
+    }]);
+
+    try {
+      const r = await fetch("/api/v1/ringg-tools/start_call_with", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          call_id: `test_${Date.now()}`,
+          client_hint: "Vikram",
+          live_mode: true,
+          client_phone: phone,
+        }),
+      });
+      const j = await r.json();
+      console.log("[TestTwilio] start_call_with response:", j);
+      setEntries(prev => [...prev, {
+        kind: "event", text: `[TEST] Response: mode=${j.mode}, call_key=${j.call_key || "none"}, spoken="${j.spoken?.slice(0, 60)}"`,
+      }]);
+
+      if (j.mode === "twilio" && j.call_key) {
+        const bd: BridgeOpenEvent = {
+          bridge_id: j.bridge_id, client_id: j.client_id || "",
+          client_name: j.client_name || "Test Client",
+          client_brief: "", connection_id: "conn_pipedrive_demo",
+          mode: "twilio", call_key: j.call_key, client_phone: phone,
+        };
+        setBridge(bd);
+        callIdRef.current = j.call_key;
+        setPhase("bridge");
+      } else {
+        setEntries(prev => [...prev, {
+          kind: "event", text: `[TEST] Not Twilio mode — got mode="${j.mode}". Check TWILIO_* env vars on Render.`,
+        }]);
+        setPhase("ended");
+      }
+    } catch (err: any) {
+      console.error("[TestTwilio] failed:", err);
+      setEntries(prev => [...prev, {
+        kind: "event", text: `[TEST] Error: ${err.message}`,
+      }]);
+      setPhase("ended");
+    }
+  };
+
   // ── Twilio bridge: real phone call, no OpenAI client agent ──────────
   const runTwilioBridge = async (b: BridgeOpenEvent) => {
     stopRef.current = false;
@@ -717,6 +772,12 @@ export default function TheDemo() {
               >
                 <Phone className="h-3.5 w-3.5" /> Call SYNC for real — bottom-right
               </a>
+              <button
+                onClick={testTwilioCall}
+                className="inline-flex items-center gap-2 border-2 border-amber-700/60 bg-amber-50 px-6 py-3 font-edit-mono text-[11px] uppercase tracking-widest text-amber-900 hover:bg-amber-700 hover:text-paper"
+              >
+                <Phone className="h-3.5 w-3.5" /> Test Twilio call
+              </button>
             </div>
           )}
           {live && (
