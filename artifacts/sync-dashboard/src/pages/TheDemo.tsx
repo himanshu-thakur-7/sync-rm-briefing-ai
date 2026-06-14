@@ -100,6 +100,15 @@ export default function TheDemo() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const sttRef = useRef<any>(null);
 
+  // Sync phone field to backend so start_call_with uses it (not the env var).
+  useEffect(() => {
+    fetch("/api/v1/demo/phone", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: clientPhone }),
+    }).catch(() => {});
+  }, [clientPhone]);
+
   // Subscribe to coaching + bridge events. We accept events for our own arc's
   // call_id AND any bridge_open / coaching event from a Ringg widget call —
   // a widget-call bridge_open is the trigger that auto-activates this UI even

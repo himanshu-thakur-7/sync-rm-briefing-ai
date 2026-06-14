@@ -28,6 +28,24 @@ router = APIRouter(prefix="/api/v1/demo", tags=["demo"])
 # Minutes of manual prep saved per briefing (matches briefings stats).
 _MINUTES_SAVED_PER_SYNC = 18.0
 
+# ── Demo phone override ──────────────────────────────────────────────────────
+# Stored here so start_call_with can read it without importing the frontend.
+# The frontend POSTs /api/v1/demo/phone whenever the user edits the phone field.
+_demo_phone_override: str = ""
+
+
+def get_demo_phone_override() -> str:
+    return _demo_phone_override
+
+
+@router.post("/phone")
+async def set_demo_phone(body: dict):
+    global _demo_phone_override
+    phone = str(body.get("phone") or "").strip()
+    _demo_phone_override = phone
+    logger.info("Demo phone override set: %s", phone[-4:].rjust(len(phone), "*") if phone else "(cleared)")
+    return {"status": "ok", "phone": phone}
+
 # A believable "today so far" — names match the Pipedrive / sandbox dataset.
 _DEMO_BRIEFINGS = [
     dict(client_id="client_005", client_name="Vikram Desai", rm_name="Himanshu",

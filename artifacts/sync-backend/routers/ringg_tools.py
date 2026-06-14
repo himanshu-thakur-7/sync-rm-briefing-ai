@@ -303,11 +303,14 @@ async def start_call_with(request: Request):
 
     # ── Place a REAL call to the client phone via Twilio (or Ringg fallback) ──
     from config import settings as _settings
+    from routers.demo import get_demo_phone_override
     twilio_ready = bool(_settings.twilio_account_sid and _settings.twilio_auth_token)
-    if live_mode or forced_phone or twilio_ready:
-        client_phone = (forced_phone or _settings.demo_client_phone or "").strip()
+    # Priority: UI-entered phone (stored via /demo/phone) > request param > env var
+    ui_phone = get_demo_phone_override()
+    if live_mode or forced_phone or ui_phone or twilio_ready:
+        client_phone = (forced_phone or ui_phone or _settings.demo_client_phone or "").strip()
         if not client_phone:
-            return _ok("Live mode is on but I don't have a phone number to dial — pass client_phone with the request.")
+            return _ok("I have Twilio ready but no phone number to dial. Enter a number in the phone field on the dashboard and try again.")
 
         # Prefer Twilio direct dial (RM browser ↔ client phone via Voice JS).
         if _settings.twilio_account_sid and _settings.twilio_auth_token:
