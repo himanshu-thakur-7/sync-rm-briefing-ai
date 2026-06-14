@@ -332,7 +332,12 @@ async def media_sink(websocket: WebSocket, call_key: str):
     labels = {"inbound": rm_first, "outbound": client_first}
     summary = f"Live coached call between {rm_first} (RM) and {sess.get('client_name')}"
 
-    _TWIML_PHRASES = {"sync is on the line", "whisper coaching", "connecting your client"}
+    _TWIML_PHRASES = {
+        "sync is on the line", "whisper coaching", "connecting your client",
+        "connecting now", "whisper coaching is live", "the call could not be connected",
+        "this is a]", "thank you for calling", "please leave a message",
+        "the number you have dialed", "is not reachable", "voicemail",
+    }
 
     async def flush(track: str) -> None:
         data = bytes(buffers[track])

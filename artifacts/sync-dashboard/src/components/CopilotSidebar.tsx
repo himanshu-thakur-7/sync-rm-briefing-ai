@@ -50,7 +50,7 @@ export function CopilotSidebar({ nudges, actions, onApprove, onSkip, onSayClick 
   const opportunities = nudges.filter(n => n.tone === "opportunity");
 
   return (
-    <aside className="flex h-full flex-col gap-0 overflow-y-auto border-l border-ink/20 bg-paper">
+    <aside className="flex h-full max-h-[28rem] flex-col gap-0 border-l border-ink/20 bg-paper">
       <SidebarHeader />
 
       <Section
@@ -150,7 +150,7 @@ function Section({ title, empty, Icon, accent, count, children }: {
           {count}
         </span>
       </div>
-      <div className="space-y-2 px-3 py-2">
+      <div className="max-h-36 space-y-2 overflow-y-auto px-3 py-2">
         {count === 0 ? (
           <p className="px-1 font-serif text-[11px] italic leading-snug text-ink/40">{empty}</p>
         ) : (

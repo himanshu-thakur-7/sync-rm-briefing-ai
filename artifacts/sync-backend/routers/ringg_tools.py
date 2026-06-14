@@ -330,7 +330,7 @@ async def start_call_with(request: Request):
 
             from routers.webhooks import broadcast_event
             await broadcast_event({"type": "bridge_open", "data": {
-                "call_id": call_id, "bridge_id": bridge_id,
+                "call_id": call_key, "bridge_id": bridge_id,
                 "client_id": target.client_id, "client_name": target.name,
                 "client_brief": brief, "connection_id": connection_id,
                 "mode": "twilio", "call_key": call_key,
