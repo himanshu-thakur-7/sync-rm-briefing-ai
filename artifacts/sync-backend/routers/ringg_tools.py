@@ -301,9 +301,10 @@ async def start_call_with(request: Request):
 
     bridge_id = f"bridge_{target.client_id}_{call_id[-6:]}"
 
-    # ── Live mode: place a REAL call to the client phone ──
-    if live_mode or forced_phone:
-        from config import settings as _settings
+    # ── Place a REAL call to the client phone via Twilio (or Ringg fallback) ──
+    from config import settings as _settings
+    twilio_ready = bool(_settings.twilio_account_sid and _settings.twilio_auth_token)
+    if live_mode or forced_phone or twilio_ready:
         client_phone = (forced_phone or _settings.demo_client_phone or "").strip()
         if not client_phone:
             return _ok("Live mode is on but I don't have a phone number to dial — pass client_phone with the request.")

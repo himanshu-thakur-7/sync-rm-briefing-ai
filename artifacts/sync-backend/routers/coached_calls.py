@@ -254,17 +254,35 @@ async def coached_twiml(request: Request, key: str = Query(None)):
     stream_url = f"{ws_base}/api/v1/coached-calls/media/{call_key}"
     dest_phone = client_phone or sess["client_phone"]
 
+    logger.info("TwiML for %s: dialing %s, stream→%s", call_key, dest_phone, stream_url)
+
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Start>
     <Stream url="{stream_url}" track="both_tracks" />
   </Start>
-  <Say voice="alice">Sync is on the line. Whisper coaching is live on your dashboard. Connecting your client now.</Say>
-  <Dial callerId="{settings.twilio_from_number}">
+  <Say voice="alice">Sync is on the line. Whisper coaching is live. Connecting now.</Say>
+  <Dial callerId="{settings.twilio_from_number}" action="/api/v1/coached-calls/dial-status" method="POST">
     <Number>{dest_phone}</Number>
   </Dial>
 </Response>"""
     return Response(content=twiml, media_type="application/xml")
+
+
+@router.api_route("/dial-status", methods=["GET", "POST"])
+async def dial_status(request: Request):
+    """Twilio posts here after the <Dial> leg completes/fails. Log the result."""
+    form = await request.form()
+    status = form.get("DialCallStatus", "unknown")
+    sip_code = form.get("DialSipResponseCode", "")
+    duration = form.get("DialCallDuration", "0")
+    logger.info("Dial status: %s (SIP %s, %ss)", status, sip_code, duration)
+    if status in ("completed", "answered"):
+        return Response(content="<Response/>", media_type="application/xml")
+    return Response(
+        content=f'<Response><Say voice="alice">The call could not be connected. Status: {status}.</Say></Response>',
+        media_type="application/xml",
+    )
 
 
 # ─── Voice JS access token for RM browser leg ────────────────────────────
