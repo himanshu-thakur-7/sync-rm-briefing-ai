@@ -565,35 +565,26 @@ function NumbersSection() {
 function SpecsSection() {
   return (
     <section id="specs" className="border-b border-ink/15 px-4 py-16 md:px-8 md:py-24">
-      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 md:grid-cols-12">
-        <div className="md:col-span-4">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-8">
           <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
-            Figure 5 · Stack
+            Figure 5 · How it works
           </p>
           <p className="mt-3 font-serif text-xl italic leading-snug text-ink/70">
-            What ships on the day we hand the laptop over for the demo.
+            How the players come together — from first word to CRM entry.
           </p>
         </div>
-
-        <div className="md:col-span-8 grid grid-cols-1 gap-x-12 gap-y-6 sm:grid-cols-2">
-          {[
-            { label: "Voice", body: "Ringg AI · outbound + inbound agents · in-call STT · warm transfer · 13 custom variables" },
-            { label: "Live Coaching", body: "Ringg transcript stream → SYNC whisper engine → earbud nudges + commitment detection → CRM writes" },
-            { label: "Briefing AI", body: "OpenAI GPT-4o · template fallback when offline" },
-            { label: "Voice Commands", body: "Ringg Parrot STT (Whisper fallback) · GPT-4o function calling · 8-tool schema" },
-            { label: "Backend", body: "Python 3.11 · FastAPI · SQLModel · aiosqlite · Authlib · httpx · tenacity" },
-            { label: "Frontend", body: "React 19 · Vite · TypeScript · Tailwind v4 · shadcn/ui · TanStack Query" },
-            { label: "Real-time", body: "WebSocket /ws/dashboard · SSE for transcript streaming" },
-            { label: "Secrets", body: "Fernet-encrypted OAuth tokens · pluggable to Vault / Secrets Manager" },
-            { label: "Tests", body: "42 passing — adapter contract · SOQL safety · OAuth · provisioning · voice" },
-          ].map((s) => (
-            <div key={s.label} className="border-t border-ink/15 pt-4">
-              <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
-                {s.label}
-              </p>
-              <p className="mt-1 font-serif text-base leading-snug text-ink/90">{s.body}</p>
-            </div>
-          ))}
+        <div className="w-full overflow-hidden border border-ink/15">
+          <iframe
+            width="100%"
+            height="640"
+            src="https://miro.com/app/live-embed/uXjVHGZFeFE=/?focusWidget=3458764675399828985&embedMode=view_only_without_ui&embedId=468732810776"
+            frameBorder="0"
+            scrolling="no"
+            allow="fullscreen; clipboard-read; clipboard-write"
+            allowFullScreen
+            title="SYNC — How the players work together"
+          />
         </div>
       </div>
     </section>

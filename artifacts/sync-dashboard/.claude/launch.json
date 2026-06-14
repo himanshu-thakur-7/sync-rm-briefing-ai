@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sync-dashboard",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "/Users/little_beast/Desktop/sync-rm-briefing-ai/artifacts/sync-dashboard",
+      "port": 3000
+    }
+  ]
+}
