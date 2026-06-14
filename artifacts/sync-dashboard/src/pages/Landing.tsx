@@ -591,14 +591,6 @@ function CtaBlock({ onCta }: { onCta: () => void }) {
             Open the dashboard
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
           </button>
-          <a
-            href="https://github.com/himanshu-thakur-7/sync-rm-briefing-ai"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-serif text-base italic text-cream/70 underline-offset-4 hover:text-cream hover:underline"
-          >
-            or read the source →
-          </a>
         </div>
       </div>
     </section>
@@ -625,17 +617,6 @@ function Colophon() {
           <div>
             <p className="text-ink/40">Powered by</p>
             <p className="mt-1 text-ink/80">Ringg AI · OpenAI · FastAPI</p>
-          </div>
-          <div>
-            <p className="text-ink/40">Repository</p>
-            <a
-              href="https://github.com/himanshu-thakur-7/sync-rm-briefing-ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-1 inline-block text-ink/80 hover:text-ink"
-            >
-              github · sync-rm-briefing-ai →
-            </a>
           </div>
         </div>
 
