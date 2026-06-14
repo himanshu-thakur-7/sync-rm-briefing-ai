@@ -992,10 +992,7 @@ export default function TheDemo() {
         )}
 
         {/* Widget pointer */}
-        <p id="widget" className="mt-12 border-t border-ink/15 pt-6 text-center font-serif text-base italic text-ink/60">
-          Or skip the simulation — click the floating <Phone className="inline h-3.5 w-3.5" /> button
-          bottom-right and talk to SYNC for real on a Ringg web call.
-        </p>
+        
       </main>
 
       {/* CRM embed rail */}
