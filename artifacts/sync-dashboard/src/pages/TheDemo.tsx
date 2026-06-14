@@ -15,7 +15,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import {
-  ArrowLeft, Headphones, Phone, Play, PhoneOff, Mic, SendHorizontal, Settings,
+  ArrowLeft, Headphones, Phone, PhoneOff, Mic, SendHorizontal, Settings,
   AlertTriangle, Sparkles, Lightbulb, CalendarPlus, Check, Loader2, X,
   PanelRightOpen,
 } from "lucide-react";
@@ -66,8 +66,6 @@ const CLIENT_FALLBACK_VOICE = { pitch: 1.12, rate: 0.97 };
 const hasBrowserSTT = typeof window !== "undefined"
   && ("webkitSpeechRecognition" in window || "SpeechRecognition" in window);
 
-const RM_NAME = "Himanshu";
-
 export default function TheDemo() {
   const [, navigate] = useLocation();
   const { connectionId } = useConnection();
@@ -76,15 +74,13 @@ export default function TheDemo() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [actionStatus, setActionStatus] = useState<Record<string, ActionState>>({});
-  // Persistent sidebar state — nudges and actions accumulate so the RM can
-  // glance at them anytime, not just at the moment they fire.
   const [sidebarNudges, setSidebarNudges] = useState<{ id: number; text: string; tone: "warn"|"opportunity"|"suggest"; say?: string }[]>([]);
   const [sidebarActions, setSidebarActions] = useState<{ id: string; tool: string; args: Record<string, unknown>; preview: string }[]>([]);
   const nudgeSeq = useRef(0);
 
-  // Live-client toggle: OFF → OpenAI voice role-plays the client in the browser
-  // (free + replayable). ON → SYNC actually dials a real phone via Ringg's
-  // outreach agent; the client speaks on that phone.
+  const [rmName, setRmName] = useState(
+    (import.meta.env.VITE_DEMO_rmName as string) ?? "Himanshu"
+  );
   const [liveClient, setLiveClient] = useState(false);
   const [clientPhone, setClientPhone] = useState(
     (import.meta.env.VITE_DEMO_CLIENT_PHONE as string) ?? ""
@@ -95,7 +91,6 @@ export default function TheDemo() {
   const [rmListening, setRmListening] = useState(false);
   const [rmInterim, setRmInterim] = useState("");
   const [rmText, setRmText] = useState("");
-  const [showConfig, setShowConfig] = useState(false);
 
   const callIdRef = useRef<string>("");
   const nudgeQueue = useRef<Nudge[]>([]);
@@ -357,7 +352,7 @@ export default function TheDemo() {
   };
 
   const sayAsRM = async (text: string) => {
-    setEntries(prev => [...prev, { kind: "line", speaker: RM_NAME, text }]);
+    setEntries(prev => [...prev, { kind: "line", speaker: rmName, text }]);
     setSpeaking("rm");
     postLine("rm", text);
     const blob = await fetchRMAudio(text);
@@ -424,7 +419,7 @@ export default function TheDemo() {
           body: JSON.stringify({ speaker: "rm", text: said }),
         }).catch(() => {});
       } else {
-        setEntries(prev => [...prev, { kind: "line", speaker: RM_NAME, text: said }]);
+        setEntries(prev => [...prev, { kind: "line", speaker: rmName, text: said }]);
       }
     }
   };
@@ -456,7 +451,7 @@ export default function TheDemo() {
   // to the OpenAI client agent, which replies in-character. This way the demo
   // runs end-to-end without anyone touching the mic.
   const AUTO_RM_LINES = [
-    "Hi, this is Himanshu from Acme. Do you have two minutes?",
+    `Hi, this is ${rmName} from Acme. Do you have two minutes?`,
     "I was looking at your account this morning and wanted to talk about the business loan EMIs.",
     "I completely understand. There is actually a way to bring your monthly outgo down quite a bit.",
     "How about this — I will hold a slot Thursday at four PM and walk you through the numbers. No commitment.",
@@ -506,7 +501,7 @@ export default function TheDemo() {
         const said = (await awaitRmTurn()).trim();
         if (stopRef.current) break;
         if (!said) continue;
-        setEntries(prev => [...prev, { kind: "line", speaker: RM_NAME, text: said }]);
+        setEntries(prev => [...prev, { kind: "line", speaker: rmName, text: said }]);
         postLine("rm", said);
 
         const turn = await fetch(`/api/v1/client-agent/${b.bridge_id}/turn`, {
@@ -604,7 +599,7 @@ export default function TheDemo() {
         agentId, xApiKey, defaultTab: "audio", hideTabSelector: true,
         title: "Call SYNC",
         description: "Talk to your CRM — briefings, tasks, meetings, by voice.",
-        variables: { company_name: "Acme", rm_name: "Himanshu" },
+        variables: { company_name: "Acme", rm_name: rmName },
         buttons: {},
       });
     } catch {}
@@ -637,7 +632,7 @@ export default function TheDemo() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           client_id: b.client_id, client_name: b.client_name,
-          rm_name: RM_NAME, connection_id: b.connection_id, scenario: "coached",
+          rm_name: rmName, connection_id: b.connection_id, scenario: "coached",
         }),
       });
       if (r.ok) {
@@ -669,7 +664,7 @@ export default function TheDemo() {
     setPhase("ringing");
     const startResp = await fetch("/api/v1/coached-calls/simulate/start", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rm_name: RM_NAME, scenario: "standup" }),
+      body: JSON.stringify({ rm_name: rmName, scenario: "standup" }),
     });
     if (!startResp.ok) { setPhase("idle"); return; }
     const startJson = await startResp.json();
@@ -680,7 +675,7 @@ export default function TheDemo() {
     setPhase("concierge");
 
     // 1. Concierge: greeting + asks the day
-    await sayAsSync(`Good morning ${RM_NAME}! You've got two meetings on the books and a few flags overnight. Want the rundown?`);
+    await sayAsSync(`Good morning ${rmName}! You've got two meetings on the books and a few flags overnight. Want the rundown?`);
     await sayAsRM("Yes — go ahead, what's on my plate today?");
     await sayAsSync("Two client meetings, three follow-ups due, and one save-call I've been holding for your approval.");
 
@@ -814,34 +809,6 @@ export default function TheDemo() {
             speaks live. SYNC listens, whispers coaching, and turns the agreed
             meeting into a real Pipedrive calendar event — without anyone touching a screen.
           </p>
-          {!live && (
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <button
-                onClick={runArc}
-                className="inline-flex items-center gap-2 border-2 border-ink bg-ink px-6 py-3 font-edit-mono text-[11px] uppercase tracking-widest text-cream hover:bg-paper hover:text-ink"
-              >
-                <Play className="h-3.5 w-3.5" /> Run the demo
-              </button>
-              <a
-                href="#widget"
-                onClick={(e) => { e.preventDefault(); window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }); }}
-                className="inline-flex items-center gap-2 border-2 border-ink/40 bg-paper px-6 py-3 font-edit-mono text-[11px] uppercase tracking-widest text-ink/80 hover:border-ink hover:bg-ink hover:text-cream"
-              >
-                <Phone className="h-3.5 w-3.5" /> Call SYNC for real
-              </a>
-              <button
-                onClick={() => setShowConfig(c => !c)}
-                className={`ml-auto inline-flex items-center gap-1 border-2 px-3 py-3 font-edit-mono text-[11px] uppercase tracking-widest transition-colors ${
-                  showConfig
-                    ? "border-ink bg-ink text-cream"
-                    : "border-ink/30 bg-paper text-ink/50 hover:border-ink hover:text-ink"
-                }`}
-                title="Configure demo settings"
-              >
-                <Settings className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          )}
           {live && (
             <div className="mt-6">
               <button
@@ -852,45 +819,32 @@ export default function TheDemo() {
               </button>
             </div>
           )}
+          {!live && (
+            <div className="mt-6 flex flex-wrap items-center gap-3 border border-ink/15 bg-paper px-4 py-3">
+              <div className="flex items-center gap-2">
+                <label className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">RM Name</label>
+                <input
+                  value={rmName}
+                  onChange={(e) => setRmName(e.target.value)}
+                  placeholder="Your name"
+                  className="w-40 border border-ink/30 bg-paper px-3 py-1.5 font-serif text-[13px] text-ink focus:border-ink focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">Phone</label>
+                <input
+                  value={clientPhone}
+                  onChange={(e) => setClientPhone(e.target.value)}
+                  placeholder="+91 9XXXX XXXXX"
+                  className="w-48 border border-ink/30 bg-paper px-3 py-1.5 font-edit-mono text-[11px] tabular-nums text-ink focus:border-ink focus:outline-none"
+                />
+              </div>
+              <p className="basis-full font-serif text-[10px] italic text-ink/40">
+                Use the floating <Phone className="inline h-3 w-3" /> widget to call SYNC. The RM name flows into the greeting, transcript labels, and Ringg agent variables.
+              </p>
+            </div>
+          )}
         </header>
-
-        {/* Config panel — hidden behind gear icon */}
-        {showConfig && !live && (
-          <div className="mt-3 flex flex-wrap items-center gap-3 border border-ink/15 bg-paper px-4 py-3">
-            <span className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">Mode</span>
-            <button
-              onClick={() => setLiveClient(false)}
-              className={`border px-3 py-1 font-edit-mono text-[10px] uppercase tracking-widest ${
-                !liveClient ? "border-ink bg-ink text-cream" : "border-ink/30 bg-paper text-ink/60 hover:bg-ink/[0.04]"
-              }`}
-            >
-              Simulated · OpenAI
-            </button>
-            <button
-              onClick={() => setLiveClient(true)}
-              className={`border px-3 py-1 font-edit-mono text-[10px] uppercase tracking-widest ${
-                liveClient ? "border-emerald-700 bg-emerald-50 text-emerald-900" : "border-ink/30 bg-paper text-ink/60 hover:bg-ink/[0.04]"
-              }`}
-            >
-              Live · Twilio
-            </button>
-            <input
-              value={clientPhone}
-              onChange={(e) => setClientPhone(e.target.value)}
-              placeholder="+91 9XXXX XXXXX"
-              className="ml-auto w-48 border border-ink/30 bg-paper px-3 py-1 font-edit-mono text-[11px] tabular-nums text-ink focus:border-ink focus:outline-none"
-            />
-            <button
-              onClick={testTwilioCall}
-              className="inline-flex items-center gap-2 border border-amber-700/60 bg-amber-50 px-3 py-1 font-edit-mono text-[10px] uppercase tracking-widest text-amber-900 hover:bg-amber-700 hover:text-paper"
-            >
-              <Phone className="h-3 w-3" /> Test call
-            </button>
-            <p className="basis-full font-serif text-[10px] italic text-ink/40">
-              Override number takes priority over CRM contact number. Leave blank to use the client's number from Pipedrive.
-            </p>
-          </div>
-        )}
 
         {/* Phase strip */}
         <div className="mt-5 grid grid-cols-4 gap-2">
@@ -930,7 +884,7 @@ export default function TheDemo() {
                   <p key={i} className="font-serif text-[14px] leading-snug text-ink/90">
                     <span className={`font-edit-mono text-[10px] font-bold uppercase tracking-widest ${
                       e.speaker === "SYNC" ? "text-emerald-800" :
-                      e.speaker === RM_NAME ? "text-ink/70" : "text-amber-800"
+                      e.speaker === rmName ? "text-ink/70" : "text-amber-800"
                     }`}>{e.speaker}</span>
                     {"  "}{e.text}
                   </p>
