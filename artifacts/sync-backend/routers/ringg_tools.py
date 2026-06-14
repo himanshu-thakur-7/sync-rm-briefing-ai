@@ -329,6 +329,7 @@ async def start_call_with(request: Request):
                 "started_at": __import__("datetime").datetime.now(
                     __import__("datetime").timezone.utc
                 ).isoformat(),
+                "call_answered": False,  # gated until AMD or first valid human speech
             }
 
             from routers.webhooks import broadcast_event

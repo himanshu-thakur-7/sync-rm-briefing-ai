@@ -148,6 +148,7 @@ async def _start_twilio_bridge(body: StartRequest, client_phone: str, rm_phone: 
         "client_phone": client_phone,
         "lines": [],
         "started_at": datetime.now(timezone.utc).isoformat(),
+        "call_answered": False,  # gated until AMD or first valid human speech
     }
 
     base = settings.backend_url.rstrip("/")
@@ -253,6 +254,12 @@ async def coached_twiml(request: Request, key: str = Query(None)):
     ws_base = ws_base.replace("https://", "wss://").replace("http://", "ws://")
     stream_url = f"{ws_base}/api/v1/coached-calls/media/{call_key}"
     dest_phone = client_phone or sess["client_phone"]
+    base = settings.backend_url.rstrip("/")
+    amd_url = f"{base}/api/v1/coached-calls/amd-callback?call_key={call_key}"
+
+    # Mark session as not yet answered — inbound track is gated until AMD
+    # (or first valid human speech) confirms a human picked up.
+    sess.setdefault("call_answered", False)
 
     logger.info("TwiML for %s: dialing %s, stream→%s", call_key, dest_phone, stream_url)
 
@@ -262,7 +269,12 @@ async def coached_twiml(request: Request, key: str = Query(None)):
     <Stream url="{stream_url}" track="both_tracks" />
   </Start>
   <Say voice="alice">Sync is on the line. Whisper coaching is live. Connecting now.</Say>
-  <Dial callerId="{settings.twilio_from_number}" action="/api/v1/coached-calls/dial-status" method="POST">
+  <Dial callerId="{settings.twilio_from_number}"
+        action="/api/v1/coached-calls/dial-status"
+        method="POST"
+        machineDetection="Enable"
+        machineDetectionUrl="{amd_url}"
+        machineDetectionTimeout="4">
     <Number>{dest_phone}</Number>
   </Dial>
 </Response>"""
@@ -316,6 +328,75 @@ async def debug_twilio_dial(body: _DebugDialBody):
 _FLUSH_BYTES = 8000 * 5           # μ-law = 1 byte/sample @ 8 kHz → 5 s chunks for cleaner STT
 _ENERGY_GATE = 400.0              # mean |sample| below this ≈ silence — skip STT
 
+# Phrases that indicate machine/IVR audio — never send to the coaching engine.
+# Covers: our own TwiML <Say> voice, Twilio system messages, Indian carrier IVRs,
+# voicemail greetings, and common Whisper hallucinations from ringing tones.
+_MACHINE_PHRASES: frozenset[str] = frozenset({
+    # Our own TwiML voice
+    "sync is on the line", "whisper coaching", "connecting your client",
+    "connecting now", "whisper coaching is live", "the call could not be connected",
+    # Twilio system
+    "this call may be recorded", "this is a test", "call cannot be completed",
+    # Generic carrier / IVR
+    "the person you are trying to reach", "is not available",
+    "please leave a message", "leave your message", "after the tone",
+    "after the beep", "the number you have dialed", "is not in service",
+    "is currently unavailable", "cannot be reached", "outside the calling area",
+    "outside of the calling area", "has been disconnected", "not reachable",
+    "is switched off", "is currently switched off", "switched off",
+    "your call has been forwarded", "has been forwarded to",
+    "welcome to voicemail", "mailbox is full", "mailbox full",
+    "press 1 to", "press one to", "press star", "press hash",
+    "for english press", "hindi mein sunne", "हिंदी", "please hold",
+    "we are unable to connect", "unable to connect your call",
+    "no answer", "is busy", "all circuits are busy",
+    "the subscriber you are calling", "the mobile number you",
+    "this number is not", "does not exist", "invalid number",
+    "thank you for calling", "thank you for your call",
+    "powered by jio", "powered by airtel", "powered by bsnl", "powered by vi",
+    "jio welcome tune", "hello tune",
+    # Whisper hallucinations from ringing tones / silence
+    "you", "you.", "♪", "♬", "[ music", "[music", "[ silence", "[silence",
+    "[ blank", "[ no audio", "(no audio)", "(silence)", "(music)",
+})
+
+
+@router.api_route("/amd-callback", methods=["POST"])
+async def amd_callback(request: Request):
+    """Twilio posts AMD result here when machineDetection fires.
+    We use it to gate transcription: only start emitting after a human picks up.
+    """
+    form = await request.form()
+    call_key = str(form.get("call_key") or form.get("CallSid") or "")
+    answered_by = str(form.get("AnsweredBy") or "").lower()
+    logger.info("AMD callback key=%s answered_by=%s", call_key, answered_by)
+
+    # Find the session by call_key or by Twilio CallSid
+    sess = _SESSIONS.get(call_key)
+    if sess is None:
+        for s in _SESSIONS.values():
+            if s.get("twilio_sid") == call_key or s.get("client_call_sid") == call_key:
+                sess = s
+                break
+
+    if sess is not None:
+        if answered_by in ("human", "human_residence", "human_business"):
+            sess["call_answered"] = True
+            logger.info("AMD: human answered — transcription active")
+        elif answered_by in ("machine_start", "machine_end_beep", "machine_end_silence",
+                             "machine_end_other", "fax"):
+            sess["call_answered"] = False
+            sess["call_machine"] = True
+            logger.info("AMD: machine/voicemail — transcription suppressed")
+            from routers.webhooks import broadcast_event
+            await broadcast_event({"type": "call_unanswered", "data": {
+                "call_id": list(k for k, v in _SESSIONS.items() if v is sess)[0]
+                           if sess in _SESSIONS.values() else "",
+                "reason": answered_by,
+            }})
+
+    return Response(content="<Response/>", media_type="application/xml")
+
 
 @router.websocket("/media/{call_key}")
 async def media_sink(websocket: WebSocket, call_key: str):
@@ -332,18 +413,18 @@ async def media_sink(websocket: WebSocket, call_key: str):
     labels = {"inbound": rm_first, "outbound": client_first}
     summary = f"Live coached call between {rm_first} (RM) and {sess.get('client_name')}"
 
-    _TWIML_PHRASES = {
-        "sync is on the line", "whisper coaching", "connecting your client",
-        "connecting now", "whisper coaching is live", "the call could not be connected",
-        "this is a]", "thank you for calling", "please leave a message",
-        "the number you have dialed", "is not reachable", "voicemail",
-    }
-
     async def flush(track: str) -> None:
         data = bytes(buffers[track])
         buffers[track].clear()
         if not data:
             return
+
+        # Gate: if AMD hasn't confirmed a human yet, only pass the RM's
+        # outbound track (what the RM is saying) — not inbound from the client
+        # side, which is ringing tones / IVR until the human picks up.
+        if not sess.get("call_answered") and track == "inbound":
+            return
+
         pcm = _mulaw_to_pcm16(data)
         if _mean_abs(pcm) < _ENERGY_GATE:
             return  # silence window — don't burn an STT call
@@ -354,11 +435,18 @@ async def media_sink(websocket: WebSocket, call_key: str):
         except Exception as e:
             logger.warning("Coached call %s: STT failed: %s", call_key, e)
             return
-        if not text or text.startswith("["):
+        if not text or text.startswith("[") or text.startswith("("):
             return
-        low = text.lower()
-        if any(p in low for p in _TWIML_PHRASES):
-            return  # skip the TwiML <Say> robot voice
+        low = text.lower().strip(".,!? ")
+        if any(p in low for p in _MACHINE_PHRASES):
+            logger.debug("Coached call %s: suppressed machine phrase: %r", call_key, text[:80])
+            return
+        # Very short outputs from ringing/tone artifacts — skip single-word noise
+        if len(text.split()) <= 1 and not sess.get("call_answered"):
+            return
+        # First valid human speech — mark call as answered (fallback if AMD didn't fire)
+        if not sess.get("call_answered"):
+            sess["call_answered"] = True
         line = f"{labels[track]}: {text}"
         sess["lines"].append(line)
         from routers.webhooks import emit_transcript_chunk
