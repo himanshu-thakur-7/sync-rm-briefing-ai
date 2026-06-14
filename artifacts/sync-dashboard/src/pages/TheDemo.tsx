@@ -581,7 +581,27 @@ export default function TheDemo() {
       fetch(`/api/v1/coached-calls/simulate/${callIdRef.current}/end`, { method: "POST" }).catch(() => {});
     }
     setPhase("wrapup");
-    setTimeout(() => setPhase("ended"), 2000);
+    setTimeout(() => {
+      setPhase("ended");
+      reloadRinggWidget();
+    }, 2000);
+  };
+
+  const reloadRinggWidget = () => {
+    const w = window as any;
+    w.__ringgWidgetLoaded = false;
+    const agentId = import.meta.env.VITE_RINGG_WIDGET_AGENT_ID;
+    const xApiKey = import.meta.env.VITE_RINGG_WIDGET_KEY;
+    if (!agentId || !xApiKey || typeof w.loadAgent !== "function") return;
+    try {
+      w.loadAgent({
+        agentId, xApiKey, defaultTab: "audio", hideTabSelector: true,
+        title: "Call SYNC",
+        description: "Talk to your CRM — briefings, tasks, meetings, by voice.",
+        variables: { company_name: "Acme", rm_name: "Himanshu" },
+        buttons: {},
+      });
+    } catch {}
   };
 
   // ── The arc ────────────────────────────────────────────────────────────
@@ -755,6 +775,7 @@ export default function TheDemo() {
   };
 
   const live = phase !== "idle" && phase !== "ended";
+  const showSidebar = live || sidebarNudges.length > 0 || sidebarActions.length > 0;
 
   return (
     <div className="min-h-screen bg-paper-grain text-ink antialiased">
@@ -884,7 +905,7 @@ export default function TheDemo() {
         </div>
 
         {/* Transcript + co-pilot sidebar (sidebar only renders during a call) */}
-        <div className={`mt-6 grid gap-4 ${live ? "md:grid-cols-[1fr_320px]" : "grid-cols-1"}`}>
+        <div className={`mt-6 grid gap-4 ${showSidebar ? "md:grid-cols-[1fr_320px]" : "grid-cols-1"}`}>
           <div ref={scrollRef} className="h-[28rem] overflow-y-auto border border-ink/15 bg-ink/[0.015] p-4">
             {phase === "idle" && (
               <p className="flex h-full items-center justify-center text-center font-serif text-base italic text-ink/40">
@@ -917,8 +938,8 @@ export default function TheDemo() {
             </div>
           </div>
 
-          {/* Right rail — live intelligence */}
-          {live && (
+          {/* Right rail — live intelligence (persists after call ends) */}
+          {showSidebar && (
             <CopilotSidebar
               nudges={sidebarNudges}
               actions={sidebarActions.map(a => ({
