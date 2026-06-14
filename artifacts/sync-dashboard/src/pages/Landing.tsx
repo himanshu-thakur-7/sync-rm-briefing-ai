@@ -211,50 +211,24 @@ function Hero({ onCta }: { onCta: () => void }) {
 function OpeningEssay() {
   return (
     <section className="border-b border-ink/15 px-4 py-16 md:px-8 md:py-24" id="brief">
-      <div className="relative mx-auto grid max-w-content grid-cols-1 gap-8 md:grid-cols-12">
-        {/* Lede */}
-        <div className="md:col-span-3">
+      <div className="mx-auto max-w-content">
+        <div className="mb-6">
           <p className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/50">
-            Reported from Mumbai &amp; Bengaluru · A working paper
+            § Demo · See it in action
+          </p>
+          <p className="mt-3 font-serif text-xl italic leading-snug text-ink/70">
+            A sixty-second walkthrough — from client name to CRM entry.
           </p>
         </div>
-
-        <article className="md:col-span-9 relative">
-          <p className="drop-cap font-serif text-lg leading-[1.6] text-ink/90 md:text-xl">
-            A Relationship Manager — at a private bank, a wealth advisory, a
-            B2B SaaS, a real-estate brokerage, an insurance brand, any business
-            with a real customer book — has a meeting with a high-value client in
-            ten minutes. The CRM has{" "}<em>everything</em> — purchase history,
-            complaints, cross-sell eligibility, last quarter's conversation about
-            a daughter's school admission. The RM doesn't have twenty minutes to
-            read it. So they walk in cold. They miss the complaint that was filed
-            last week. They pitch a product the client isn't eligible for. Trust
-            erodes. The cross-sell dies.
-          </p>
-
-          <p className="mt-6 font-serif text-lg leading-[1.7] text-ink/80">
-            <strong className="font-semibold">Sync</strong> is the obvious response to
-            this — and, oddly, the only voice-first one. The RM dials a number, says
-            the client's name, and forty-five seconds later they know what
-            matters: the open complaint, the rough portfolio shape, the cross-sell
-            pitch <em>tied to a real piece of the client's life</em>. After the meeting,
-            they hold a microphone in the dashboard and dictate the follow-up.
-            Sync writes it back to whatever CRM the business already runs.
-          </p>
-
-          <Marginalia number="i">
-            Sync sits <em>on top of</em> Pipedrive, HubSpot, Salesforce, Zoho, Dynamics, Freshworks
-            or LeadSquared — not in place of any of them.
-          </Marginalia>
-
-          <p className="mt-6 font-serif text-lg leading-[1.7] text-ink/80">
-            None of this is novel in concept. The novelty is the{" "}
-            <em>posture</em>: Sync refuses to be a CRM. It is a layer. The CRM stays.
-            The business's data stays. The business's compliance posture stays.
-            Sync adds the one thing the business cannot buy — a voice that an
-            RM will actually use.
-          </p>
-        </article>
+        <div className="relative w-full overflow-hidden border border-ink/15" style={{ paddingBottom: "56.25%" }}>
+          <iframe
+            src="https://drive.google.com/file/d/1PxamCTTRnIhUF6LtzZE7vRp_y9aprWSO/preview"
+            className="absolute inset-0 h-full w-full"
+            allow="autoplay"
+            allowFullScreen
+            title="SYNC — Demo video"
+          />
+        </div>
       </div>
     </section>
   );
