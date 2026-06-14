@@ -4,14 +4,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import Landing from "@/pages/Landing";
-import Dashboard from "@/pages/Dashboard";
 import IntegrationsIndex from "@/pages/IntegrationsIndex";
-import RiskRadar from "@/pages/RiskRadar";
-import MorningBrief from "@/pages/MorningBrief";
 import TheDemo from "@/pages/TheDemo";
 import NotFound from "@/pages/not-found";
 import { ConnectionProvider } from "@/lib/connection-context";
 import { PiiProvider } from "@/lib/pii-context";
+import { Redirect } from "wouter";
 
 const queryClient = new QueryClient();
 
@@ -19,9 +17,9 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/radar" component={RiskRadar} />
-      <Route path="/morning-brief" component={MorningBrief} />
+      <Route path="/dashboard"><Redirect to="/the-demo" /></Route>
+      <Route path="/radar"><Redirect to="/the-demo" /></Route>
+      <Route path="/morning-brief"><Redirect to="/the-demo" /></Route>
       <Route path="/the-demo" component={TheDemo} />
       <Route path="/demo" component={TheDemo} />
       <Route path="/settings/integrations" component={IntegrationsIndex} />

@@ -76,11 +76,11 @@ export default function IntegrationsIndex() {
       <div className="border-b border-ink/15 bg-paper">
         <div className="mx-auto flex h-8 max-w-[1100px] items-center justify-between px-4 font-edit-mono text-[10px] uppercase tracking-widest text-ink/60 md:px-6">
           <button
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate("/the-demo")}
             className="inline-flex items-center gap-1.5 hover:text-ink"
           >
             <ArrowLeft className="h-3 w-3" />
-            Back to the Briefing Desk
+            Back to The Demo
           </button>
           <span>§ Appendix A</span>
         </div>

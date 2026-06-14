@@ -19,9 +19,6 @@ import { LiveFeed } from "@/components/LiveFeed";
 import { Comparison } from "@/components/Comparison";
 import { Footer } from "@/components/Footer";
 import { WebhookActivityPanel, WebhookEventEntry } from "@/components/WebhookActivityPanel";
-import { RiskRadarPanel } from "@/components/RiskRadarPanel";
-import { MorningBriefPanel } from "@/components/MorningBriefPanel";
-import { ConciergePanel } from "@/components/ConciergePanel";
 import { CRMEmbedRail } from "@/components/CRMEmbedPanel";
 import { useConnection } from "@/lib/connection-context";
 import { providerFromConnectionId } from "@/components/CRMSourceBadge";
@@ -94,13 +91,9 @@ export default function Dashboard() {
           <div className="space-y-5 lg:col-span-4">
             <SyncPanel
               onClientSelect={setActiveClientId}
-              onRmNameChange={setRmName}
               onShowEmbed={() => setEmbedOpen(true)}
               activeClientId={activeClientId}
             />
-            <ConciergePanel />
-            <RiskRadarPanel />
-            <MorningBriefPanel />
             <Comparison />
           </div>
 

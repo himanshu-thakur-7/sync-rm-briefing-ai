@@ -17,6 +17,7 @@ import { useLocation } from "wouter";
 import {
   ArrowLeft, Headphones, Phone, Play, PhoneOff, Mic, SendHorizontal, Settings,
   AlertTriangle, Sparkles, Lightbulb, CalendarPlus, Check, Loader2, X,
+  PanelRightOpen,
 } from "lucide-react";
 import { useWebSocket, WebSocketMessage } from "@/hooks/use-websocket";
 import { playChime, setTheaterActive, speakDialogue, whisperSupported } from "@/lib/whisper";
@@ -24,6 +25,9 @@ import { WebCallWidget } from "@/components/WebCallWidget";
 import { CoachingOverlay } from "@/components/CoachingOverlay";
 import { CopilotSidebar } from "@/components/CopilotSidebar";
 import { TwilioCallControls } from "@/components/TwilioCallControls";
+import { CRMEmbedRail } from "@/components/CRMEmbedPanel";
+import { useConnection } from "@/lib/connection-context";
+import { providerFromConnectionId } from "@/components/CRMSourceBadge";
 
 type Phase =
   | "idle"
@@ -66,6 +70,8 @@ const RM_NAME = "Himanshu";
 
 export default function TheDemo() {
   const [, navigate] = useLocation();
+  const { connectionId } = useConnection();
+  const [embedOpen, setEmbedOpen] = useState(false);
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -781,10 +787,16 @@ export default function TheDemo() {
     <div className="min-h-screen bg-paper-grain text-ink antialiased">
       <div className="border-b border-ink/15 bg-paper">
         <div className="mx-auto flex h-8 max-w-[1100px] items-center justify-between px-4 font-edit-mono text-[10px] uppercase tracking-widest text-ink/60 md:px-6">
-          <button onClick={() => navigate("/dashboard")} className="inline-flex items-center gap-1.5 hover:text-ink">
-            <ArrowLeft className="h-3 w-3" /> Back to the Briefing Desk
+          <button onClick={() => navigate("/")} className="inline-flex items-center gap-1.5 hover:text-ink">
+            <ArrowLeft className="h-3 w-3" /> Home
           </button>
-          <span>§ The Demo</span>
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate("/settings/integrations")} className="inline-flex items-center gap-1 hover:text-ink">
+              <Settings className="h-3 w-3" /> Integrations
+            </button>
+            <span className="text-ink/30">·</span>
+            <span>§ The Demo</span>
+          </div>
         </div>
       </div>
 
@@ -1032,11 +1044,51 @@ export default function TheDemo() {
         </p>
       </main>
 
+      {/* CRM embed rail */}
+      {embedOpen && bridge?.client_id && (
+        <div className="fixed inset-y-0 right-0 z-[60] w-full max-w-[440px] border-l-2 border-ink bg-paper shadow-2xl">
+          <div className="flex h-full flex-col">
+            <div className="flex items-center justify-between border-b border-ink bg-ink/[0.02] px-4 py-3">
+              <span className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/70">
+                § CRM Contact View
+              </span>
+              <button
+                onClick={() => setEmbedOpen(false)}
+                className="flex h-6 w-6 items-center justify-center border border-ink/30 text-ink/60 hover:bg-ink hover:text-paper"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <CRMEmbedRail
+                connections={[{ id: connectionId, provider: providerFromConnectionId(connectionId), label: connectionId }]}
+                clientId={bridge.client_id}
+                defaultProvider={providerFromConnectionId(connectionId)}
+                onClose={() => setEmbedOpen(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating "Open CRM view" button — visible when a client is active */}
+      {!embedOpen && bridge?.client_id && (
+        <div className="fixed bottom-6 right-20 z-30">
+          <button
+            onClick={() => setEmbedOpen(true)}
+            className="inline-flex items-center gap-2 border-2 border-ink bg-paper px-4 py-2.5 font-edit-mono text-[10px] uppercase tracking-widest text-ink shadow-lg transition-colors hover:bg-ink hover:text-cream"
+          >
+            <PanelRightOpen className="h-3 w-3" />
+            Open in CRM
+          </button>
+        </div>
+      )}
+
       {/* Live whisper coaching — renders nudge cards globally during a real
           widget call (transcripts come via Ringg webhooks → coaching engine). */}
       <CoachingOverlay />
 
-      {/* Ringg web-call widget — same component as the dashboard, mounted here too */}
+      {/* Ringg web-call widget */}
       <WebCallWidget />
     </div>
   );

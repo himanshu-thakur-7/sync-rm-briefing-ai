@@ -5,97 +5,34 @@
 import { useEffect, useState } from "react";
 import {
   ClientFullProfile, ClientProfile, LoanProduct,
-  useGetClient, useListClients, useSyncNow,
+  useGetClient, useListClients,
 } from "@workspace/api-client-react";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  CheckCircle2, Loader2, ArrowRight, ShieldAlert, Sparkles, PanelRightOpen, Mic, Headphones,
-} from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
-} from "@/components/ui/dialog";
+import { ShieldAlert, Sparkles, PanelRightOpen } from "lucide-react";
 import { CRMSourceBadge, providerFromConnectionId } from "./CRMSourceBadge";
-import { CoachedCallTheater } from "./CoachedCallTheater";
 import { useConnection } from "@/lib/connection-context";
 import { usePii } from "@/lib/pii-context";
 
 interface Props {
   onClientSelect?: (clientId: string) => void;
-  onRmNameChange?: (name: string) => void;
   onShowEmbed?: () => void;
   activeClientId?: string;
 }
 
-export function SyncPanel({ onClientSelect, onRmNameChange, onShowEmbed }: Props) {
+export function SyncPanel({ onClientSelect, onShowEmbed }: Props) {
   const { connectionId } = useConnection();
   const { scrub } = usePii();
-  const { toast } = useToast();
   const { data: clients, isLoading } = useListClients();
   const [selectedClient, setSelectedClient] = useState("");
-  const [rmPhone, setRmPhone] = useState(import.meta.env.VITE_DEMO_RM_PHONE ?? "+91 98765 43210");
-  const [rmName, setRmName] = useState(import.meta.env.VITE_DEMO_RM_NAME ?? "Himanshu");
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewText, setPreviewText] = useState("");
-  const [coachedPending, setCoachedPending] = useState(false);
-  const [theaterOpen, setTheaterOpen] = useState(false);
-  const syncMutation = useSyncNow();
   const selectedSummary = clients?.find(c => c.client_id === selectedClient);
   const { data: selectedProfile } = useGetClient(selectedClient);
 
   useEffect(() => { if (selectedClient) onClientSelect?.(selectedClient); }, [selectedClient]);
-  useEffect(() => { onRmNameChange?.(rmName); }, [rmName]);
 
-  const handleSync = () => {
-    if (!selectedClient || !rmPhone || !rmName) return;
-    syncMutation.mutate(
-      { data: { client_id: selectedClient, rm_phone: rmPhone, rm_name: rmName } },
-      { onSuccess: d => { setPreviewText(d.briefing_preview); setPreviewOpen(true); } }
-    );
-  };
-
-  const isPending = syncMutation.isPending;
-  const isSuccess = syncMutation.isSuccess;
   const provider = providerFromConnectionId(connectionId);
-
-  // Coached Call — a real RM ↔ client phone call with SYNC listening live
-  // (Twilio bridge when configured, Ringg silent-chaperone otherwise) and
-  // whisper coaching firing on the dashboard / earbud.
-  const handleCoachedCall = async () => {
-    if (!selectedClient || !rmPhone) return;
-    setCoachedPending(true);
-    try {
-      const r = await fetch("/api/v1/coached-calls/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          client_id: selectedClient,
-          client_name: selectedSummary?.name ?? "the client",
-          rm_phone: rmPhone.replace(/\s/g, ""),
-          rm_name: rmName,
-          connection_id: connectionId,
-          route: "auto",
-        }),
-      });
-      if (!r.ok) {
-        const detail = await r.text();
-        throw new Error(`HTTP ${r.status}: ${detail.slice(0, 160)}`);
-      }
-      const d = await r.json();
-      toast({
-        title: d.route === "twilio" ? "Coached call — your phone is ringing" : "Coached call via SYNC line",
-        description: `${d.message} Turn on Whisper Mode (🎧 in the masthead) to hear tips in your ear.`,
-      });
-    } catch (e: any) {
-      toast({ title: "Coached call failed", description: e?.message ?? String(e), variant: "destructive" });
-    } finally {
-      setCoachedPending(false);
-    }
-  };
 
   return (
     <>
@@ -106,7 +43,7 @@ export function SyncPanel({ onClientSelect, onRmNameChange, onShowEmbed }: Props
             <span className="text-ink/40">§</span>
             <span>02</span>
             <span className="text-ink/30">·</span>
-            <span>Brief A Client</span>
+            <span>Browse Clients · Open CRM</span>
           </div>
           <CRMSourceBadge provider={provider} />
         </div>
@@ -117,7 +54,7 @@ export function SyncPanel({ onClientSelect, onRmNameChange, onShowEmbed }: Props
             <Label className="font-edit-mono text-[9px] uppercase tracking-widest text-ink/50">
               Client
             </Label>
-            <Select value={selectedClient} onValueChange={setSelectedClient} disabled={isLoading || isPending}>
+            <Select value={selectedClient} onValueChange={setSelectedClient} disabled={isLoading}>
               <SelectTrigger className="h-10 rounded-none border border-ink/30 bg-paper font-serif text-ink shadow-none focus:border-ink focus:ring-0">
                 <SelectValue placeholder={isLoading ? "Loading…" : "Select client…"} />
               </SelectTrigger>
@@ -140,105 +77,13 @@ export function SyncPanel({ onClientSelect, onRmNameChange, onShowEmbed }: Props
             <ClientPreview summary={selectedSummary} profile={selectedProfile} onShowEmbed={onShowEmbed} />
           )}
 
-          {/* RM Name */}
-          <div className="space-y-1.5">
-            <Label className="font-edit-mono text-[9px] uppercase tracking-widest text-ink/50">
-              RM Name
-            </Label>
-            <Input
-              value={rmName}
-              onChange={e => setRmName(e.target.value)}
-              disabled={isPending}
-              className="h-10 rounded-none border border-ink/30 bg-paper font-serif text-ink shadow-none focus-visible:border-ink focus-visible:ring-0"
-            />
-          </div>
-
-          {/* RM Phone */}
-          <div className="space-y-1.5">
-            <Label className="font-edit-mono text-[9px] uppercase tracking-widest text-ink/50">
-              RM Phone
-            </Label>
-            <Input
-              value={rmPhone}
-              onChange={e => setRmPhone(e.target.value)}
-              disabled={isPending}
-              className="h-10 rounded-none border border-ink/30 bg-paper font-edit-mono text-ink shadow-none focus-visible:border-ink focus-visible:ring-0"
-            />
-          </div>
-
-          {/* Submit */}
-          <button
-            onClick={handleSync}
-            disabled={!selectedClient || !rmPhone || !rmName || isPending}
-            className={`group mt-2 inline-flex w-full items-center justify-center gap-2 border-2 px-5 py-3 font-edit-mono text-[11px] uppercase tracking-widest transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
-              isSuccess && !isPending
-                ? "border-emerald-800 bg-emerald-800 text-paper hover:bg-paper hover:text-emerald-800"
-                : "border-ink bg-ink text-cream hover:bg-paper hover:text-ink"
-            }`}
-          >
-            {isPending ? (
-              <><Loader2 className="h-3.5 w-3.5 animate-spin" />Calling…</>
-            ) : isSuccess ? (
-              <><CheckCircle2 className="h-3.5 w-3.5" />Sync Delivered</>
-            ) : (
-              <>Initiate Briefing Call<ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" /></>
-            )}
-          </button>
-
-          {/* Coached Call — live human↔human call with SYNC whispering */}
-          <div className="flex gap-2">
-            <button
-              onClick={handleCoachedCall}
-              disabled={!selectedClient || !rmPhone || coachedPending}
-              className="inline-flex flex-1 items-center justify-center gap-2 border-2 border-ink/40 bg-paper px-3 py-2.5 font-edit-mono text-[10px] uppercase tracking-widest text-ink/80 transition-colors hover:border-ink hover:bg-ink hover:text-cream disabled:cursor-not-allowed disabled:opacity-50"
-              title="SYNC bridges you and the client on a real call, listens live, and whispers coaching"
-            >
-              {coachedPending
-                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Placing…</>
-                : <><Headphones className="h-3.5 w-3.5" />Coached Call</>}
-            </button>
-            <button
-              onClick={() => setTheaterOpen(true)}
-              disabled={!selectedClient}
-              className="inline-flex flex-1 items-center justify-center gap-2 border-2 border-amber-700/60 bg-amber-50 px-3 py-2.5 font-edit-mono text-[10px] uppercase tracking-widest text-amber-900 transition-colors hover:border-amber-800 hover:bg-amber-800 hover:text-paper disabled:cursor-not-allowed disabled:opacity-50"
-              title="Live simulations — coached call, morning standup, autonomous save-call with warm transfer. AI voices, real coaching engine, real CRM writes."
-            >
-              ▶ Simulations
-            </button>
-          </div>
-
           {selectedClient && (
             <p className="border-t border-ink/15 pt-3 text-center font-serif text-[11px] italic text-ink/50">
-              <Mic className="mr-1 inline h-3 w-3" />
-              Hold the microphone in the masthead to dictate a CRM action
+              Use the web-call widget to connect — say the client's name to begin.
             </p>
           )}
         </div>
       </section>
-
-      {/* Coached-call simulation theater */}
-      <CoachedCallTheater
-        open={theaterOpen}
-        onClose={() => setTheaterOpen(false)}
-        clientId={selectedClient}
-        clientName={selectedSummary?.name ?? "Vikram Desai"}
-        rmName={rmName}
-        connectionId={connectionId}
-      />
-
-      {/* Briefing preview */}
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="rounded-none border-ink bg-paper sm:max-w-[560px]">
-          <DialogHeader>
-            <DialogTitle className="font-edit-mono text-[10px] uppercase tracking-widest text-ink/60">
-              § Briefing Preview
-            </DialogTitle>
-            <DialogDescription className="mt-3 whitespace-pre-wrap border-l-2 border-ink pl-4 font-serif text-base italic leading-relaxed text-ink/90">
-              {previewText}
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

@@ -31,7 +31,7 @@ export default function Landing() {
       <Ticker />
 
       {/* Masthead */}
-      <Masthead onCta={() => navigate("/dashboard")} />
+      <Masthead onCta={() => navigate("/the-demo")} />
 
       {/* Hero */}
       <Hero onCta={() => navigate("/the-demo")} />
@@ -58,7 +58,7 @@ export default function Landing() {
         kicker="The Layer"
         title={<>Not a CRM. The <em className="font-display italic">voice</em> on top of yours.</>}
       />
-      <IntegrationsSection onCta={() => navigate("/dashboard")} />
+      <IntegrationsSection onCta={() => navigate("/the-demo")} />
 
       {/* Section 04 — Voice → action */}
       <SectionHeader
